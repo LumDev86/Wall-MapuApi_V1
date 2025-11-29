@@ -7,7 +7,7 @@ import {
   ShopsResponse
 } from '../types/product.types';
 
-const API_URL = 'https://wall-mapuapi-production.up.railway.app/api';
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const api = axios.create({
   baseURL: API_URL,
