@@ -24,20 +24,23 @@ Wallmapu es una aplicación móvil de marketplace para productos de mascotas, de
 - **Frontend**: React Native + Expo
 - **Lenguaje**: TypeScript
 - **Navegación**: React Navigation (Stack + Bottom Tabs)
+- **Mapas**: react-native-maps + Google Maps Platform
 - **Estado**: React Context API
 - **Estilos**: StyleSheet + React Native Paper
 - **Íconos**: Ionicons
 - **Almacenamiento Local**: AsyncStorage
 - **HTTP Client**: Axios
 - **Variables de Entorno**: Expo Environment Variables
+- **Geolocalización**: Backend geocoding (coordenadas)
 
 ## 📋 Requisitos Previos
 
 - Node.js 18 o superior
 - npm o yarn
 - Expo CLI
-- Expo Go (para desarrollo en dispositivo móvil)
-- Android Studio o Xcode (para emuladores)
+- **Google Maps API Key** (para funcionalidad de mapas)
+- Android Studio o Xcode (para desarrollo con mapas)
+- Emulador Android con Google Play Services o dispositivo físico
 
 ## 📦 Instalación
 
@@ -65,9 +68,19 @@ Wallmapu es una aplicación móvil de marketplace para productos de mascotas, de
    EXPO_PUBLIC_ENV=development
    ```
 
-4. **Inicia el servidor de desarrollo**
+4. **Configura Google Maps** (requerido para el mapa)
+   - Sigue las instrucciones en: **[GOOGLE_MAPS_SETUP.md](./GOOGLE_MAPS_SETUP.md)**
+   - Obtén una API key de Google Maps Platform
+   - Actualiza `app.json` con tu API key
+   - Ejecuta `npx expo prebuild`
+
+5. **Inicia el servidor de desarrollo**
    ```bash
+   # Para Expo Go (sin mapa funcional)
    npx expo start
+
+   # Para desarrollo con mapa (recomendado)
+   npx expo run:android
    ```
 
 ## 🔧 Scripts Disponibles

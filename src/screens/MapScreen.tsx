@@ -9,28 +9,70 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/colors';
 import { shopService } from '../services/api';
 import { Shop } from '../types/product.types';
 
+interface ShopWithDistance extends Shop {
+  distance?: number;
+}
+
 const MapScreen = () => {
-  const [shops, setShops] = useState<Shop[]>([]);
+  const { user } = useAuth();
+  const [shops, setShops] = useState<ShopWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [selectedShop, setSelectedShop] = useState<ShopWithDistance | null>(null);
 
   useEffect(() => {
     fetchShops();
   }, []);
 
+  // Fórmula de Haversine para calcular distancia entre dos coordenadas
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    return Math.round(distance * 10) / 10; // Redondear a 1 decimal
+  };
+
   const fetchShops = async () => {
     try {
       setLoading(true);
       const response = await shopService.getAll({ page: 1, limit: 10 });
-      setShops(response.data);
-      if (response.data.length > 0) {
-        setSelectedShop(response.data[0]);
+
+      // Calcular distancias y ordenar por proximidad
+      const shopsWithDistance = response.data
+        .map((shop: Shop) => {
+          if (shop.latitude && shop.longitude && user?.latitude && user?.longitude) {
+            const distance = calculateDistance(
+              user.latitude,
+              user.longitude,
+              shop.latitude,
+              shop.longitude
+            );
+            return { ...shop, distance };
+          }
+          return { ...shop, distance: undefined };
+        })
+        .sort((a, b) => {
+          if (a.distance === undefined) return 1;
+          if (b.distance === undefined) return -1;
+          return a.distance - b.distance;
+        });
+
+      setShops(shopsWithDistance);
+      if (shopsWithDistance.length > 0) {
+        setSelectedShop(shopsWithDistance[0]);
       }
     } catch (error) {
       console.error('Error fetching shops:', error);
@@ -52,7 +94,11 @@ const MapScreen = () => {
       <View style={styles.header}>
         <TouchableOpacity style={styles.locationButton}>
           <Ionicons name="location" size={20} color="#fff" />
-          <Text style={styles.locationText}>Ubicacion, Ciudad</Text>
+          <Text style={styles.locationText}>
+            {user?.city && user?.province
+              ? `${user.city}, ${user.province}`
+              : user?.city || user?.province || 'Ubicación no configurada'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.cartButton}>
           <Ionicons name="cart-outline" size={28} color="#fff" />
@@ -74,40 +120,53 @@ const MapScreen = () => {
       </View>
 
       <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}>
-          {/* Simulación de mapa con marcadores */}
-          {shops.slice(0, 6).map((shop, index) => {
-            const positions = [
-              { top: '15%', left: '25%' },
-              { top: '30%', left: '50%' },
-              { top: '45%', left: '35%' },
-              { top: '55%', left: '65%' },
-              { top: '35%', left: '75%' },
-              { top: '65%', left: '20%' },
-            ];
-            const position = positions[index] || { top: '50%', left: '50%' };
+        <MapView
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          initialRegion={{
+            latitude: user?.latitude || -34.6037,
+            longitude: user?.longitude || -58.3816,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }}
+          showsUserLocation={true}
+          showsMyLocationButton={true}
+          showsCompass={true}
+          showsScale={true}
+        >
+          {/* Marcador del usuario */}
+          {user?.latitude && user?.longitude && (
+            <Marker
+              coordinate={{
+                latitude: user.latitude,
+                longitude: user.longitude,
+              }}
+              title="Tu ubicación"
+              description={user.city && user.province ? `${user.city}, ${user.province}` : 'Mi ubicación'}
+              pinColor="#4285F4"
+            />
+          )}
+
+          {/* Marcadores de tiendas */}
+          {shops.map((shop) => {
+            if (!shop.latitude || !shop.longitude) return null;
             const isSelected = selectedShop?.id === shop.id;
 
             return (
-              <TouchableOpacity
+              <Marker
                 key={shop.id}
-                style={[
-                  styles.mapMarker,
-                  isSelected ? styles.mapMarkerSelected : styles.mapMarkerDefault,
-                  { top: position.top, left: position.left },
-                ]}
+                coordinate={{
+                  latitude: shop.latitude,
+                  longitude: shop.longitude,
+                }}
+                title={shop.name}
+                description={`${shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}${shop.distance ? ` - ${shop.distance}km` : ''}`}
+                pinColor={isSelected ? '#FF6B35' : COLORS.primary}
                 onPress={() => setSelectedShop(shop)}
-              >
-                <Ionicons name="storefront" size={20} color="#fff" />
-              </TouchableOpacity>
+              />
             );
           })}
-
-          {/* Marcador de ubicación del usuario */}
-          <View style={[styles.userMarker, { top: '50%', left: '45%' }]}>
-            <Ionicons name="person" size={18} color="#fff" />
-          </View>
-        </View>
+        </MapView>
       </View>
 
       <View style={styles.bottomSheet}>
@@ -117,6 +176,15 @@ const MapScreen = () => {
             <Ionicons name="options-outline" size={24} color={COLORS.text} />
           </TouchableOpacity>
         </View>
+
+        {!user?.latitude || !user?.longitude ? (
+          <View style={styles.noLocationContainer}>
+            <Ionicons name="location-outline" size={48} color="#999" />
+            <Text style={styles.noLocationText}>
+              Configura tu ubicación en el perfil para ver tiendas cercanas
+            </Text>
+          </View>
+        ) : null}
 
         <ScrollView
           horizontal
@@ -139,7 +207,7 @@ const MapScreen = () => {
 };
 
 interface ShopCardProps {
-  shop: Shop;
+  shop: ShopWithDistance;
   isSelected: boolean;
   onPress: () => void;
 }
@@ -166,7 +234,9 @@ const ShopCard: React.FC<ShopCardProps> = ({ shop, isSelected, onPress }) => {
       </View>
       <View style={styles.shopDistance}>
         <Ionicons name="location-outline" size={16} color="#666" />
-        <Text style={styles.distanceText}>0.5Km</Text>
+        <Text style={styles.distanceText}>
+          {shop.distance !== undefined ? `${shop.distance}km` : 'N/A'}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -254,47 +324,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
   },
-  mapPlaceholder: {
-    flex: 1,
-    backgroundColor: '#E8F5F0',
-    position: 'relative',
-  },
-  mapMarker: {
-    position: 'absolute',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  mapMarkerDefault: {
-    backgroundColor: COLORS.primary,
-  },
-  mapMarkerSelected: {
-    backgroundColor: '#FF6B35',
-  },
-  userMarker: {
-    position: 'absolute',
-    backgroundColor: '#4285F4',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+  map: {
+    width: '100%',
+    height: '100%',
   },
   bottomSheet: {
     backgroundColor: '#fff',
@@ -319,6 +351,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
+  },
+  noLocationContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+  },
+  noLocationText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 20,
   },
   shopsList: {
     maxHeight: 140,

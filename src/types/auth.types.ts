@@ -5,6 +5,11 @@ export interface User {
   email: string;
   name: string;
   phone: string;
+  province: string | null;
+  city: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   role: UserRole;
   isEmailVerified: boolean;
   passwordResetExpires: string | null;
@@ -21,6 +26,9 @@ export interface RegisterRequest {
   name: string;
   phone: string;
   role: UserRole;
+  province?: string;
+  city?: string;
+  address?: string;
 }
 
 export interface LoginRequest {

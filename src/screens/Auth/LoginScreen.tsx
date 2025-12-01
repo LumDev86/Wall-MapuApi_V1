@@ -26,6 +26,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const { login, clearData } = useAuth();
 
+  const getErrorMessage = (error: any): string => {
+    const message = error.response?.data?.message;
+
+    // Si el mensaje es un array, unirlo en un string
+    if (Array.isArray(message)) {
+      return message.join('\n');
+    }
+
+    // Si es un string, devolverlo directamente
+    if (typeof message === 'string') {
+      return message;
+    }
+
+    // Mensaje por defecto
+    return 'Error al iniciar sesión. Por favor intenta nuevamente.';
+  };
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
@@ -36,10 +53,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     try {
       await login({ email, password });
     } catch (error: any) {
-      Alert.alert(
-        'Error',
-        error.response?.data?.message || 'Error al iniciar sesión. Por favor intenta nuevamente.'
-      );
+      const errorMessage = getErrorMessage(error);
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }

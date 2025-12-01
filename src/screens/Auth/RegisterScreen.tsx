@@ -29,6 +29,9 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [role, setRole] = useState<UserRole>('client');
+  const [province, setProvince] = useState('');
+  const [city, setCity] = useState('');
+  const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
 
@@ -57,6 +60,23 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     return true;
   };
 
+  const getErrorMessage = (error: any): string => {
+    const message = error.response?.data?.message;
+
+    // Si el mensaje es un array, unirlo en un string
+    if (Array.isArray(message)) {
+      return message.join('\n');
+    }
+
+    // Si es un string, devolverlo directamente
+    if (typeof message === 'string') {
+      return message;
+    }
+
+    // Mensaje por defecto
+    return 'Error al registrarse. Por favor intenta nuevamente.';
+  };
+
   const handleRegister = async () => {
     if (!validateForm()) return;
 
@@ -68,13 +88,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
         phone,
         password,
         role,
+        province: province || undefined,
+        city: city || undefined,
+        address: address || undefined,
       });
       Alert.alert('Éxito', 'Cuenta creada exitosamente');
     } catch (error: any) {
-      Alert.alert(
-        'Error',
-        error.response?.data?.message || 'Error al registrarse. Por favor intenta nuevamente.'
-      );
+      const errorMessage = getErrorMessage(error);
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -140,6 +161,45 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
+            />
+          </View>
+
+          <Text style={styles.label}>Provincia (Opcional)</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="map-outline" size={20} color="#999" />
+            <TextInput
+              style={styles.input}
+              placeholder="Buenos Aires"
+              placeholderTextColor={COLORS.placeholder}
+              value={province}
+              onChangeText={setProvince}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <Text style={styles.label}>Ciudad (Opcional)</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="location-outline" size={20} color="#999" />
+            <TextInput
+              style={styles.input}
+              placeholder="Ciudad Autónoma de Buenos Aires"
+              placeholderTextColor={COLORS.placeholder}
+              value={city}
+              onChangeText={setCity}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <Text style={styles.label}>Dirección (Opcional)</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="home-outline" size={20} color="#999" />
+            <TextInput
+              style={styles.input}
+              placeholder="Av. Corrientes 1234"
+              placeholderTextColor={COLORS.placeholder}
+              value={address}
+              onChangeText={setAddress}
+              autoCapitalize="words"
             />
           </View>
 

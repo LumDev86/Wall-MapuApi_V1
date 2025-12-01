@@ -74,6 +74,21 @@ const ProfileScreen = () => {
             <InfoRow icon="person-outline" label="Nombre completo" value={user?.name || ''} />
             <InfoRow icon="mail-outline" label="Email" value={user?.email || ''} />
             <InfoRow icon="call-outline" label="Teléfono" value={user?.phone || 'No agregado'} />
+            <InfoRow
+              icon="map-outline"
+              label="Provincia"
+              value={user?.province || 'No agregado'}
+            />
+            <InfoRow
+              icon="location-outline"
+              label="Ciudad"
+              value={user?.city || 'No agregado'}
+            />
+            <InfoRow
+              icon="home-outline"
+              label="Dirección"
+              value={user?.address || 'No agregado'}
+            />
             <TouchableOpacity style={styles.editButton}>
               <Ionicons name="create-outline" size={20} color={COLORS.primary} />
               <Text style={styles.editButtonText}>Editar información</Text>

@@ -12,12 +12,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/colors';
 import { categoryService } from '../services/api';
 import { Category } from '../types/product.types';
 
 const CatalogScreen = () => {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,7 +63,11 @@ const CatalogScreen = () => {
           <View style={styles.headerTop}>
             <TouchableOpacity style={styles.locationButton}>
               <Ionicons name="location-outline" size={20} color="#fff" />
-              <Text style={styles.locationText}>Ubicacion, Ciudad</Text>
+              <Text style={styles.locationText}>
+                {user?.city && user?.province
+                  ? `${user.city}, ${user.province}`
+                  : user?.city || user?.province || 'Ubicación no configurada'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cartButton}>
               <Ionicons name="cart-outline" size={28} color="#fff" />

@@ -82,7 +82,11 @@ const HomeScreen = () => {
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.locationButton}>
             <Ionicons name="location-outline" size={20} color="#fff" />
-            <Text style={styles.locationText}>Ubicacion, Ciudad</Text>
+            <Text style={styles.locationText}>
+              {user?.city && user?.province
+                ? `${user.city}, ${user.province}`
+                : user?.city || user?.province || 'Ubicación no configurada'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cartButton}>
             <Ionicons name="cart-outline" size={28} color="#fff" />
