@@ -8,13 +8,28 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  Platform,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/colors';
 import { shopService } from '../services/api';
 import { Shop } from '../types/product.types';
+
+// Importación condicional de react-native-maps
+let MapView: any = null;
+let Marker: any = null;
+let PROVIDER_GOOGLE: any = null;
+
+try {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Marker = maps.Marker;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+} catch (e) {
+  // react-native-maps no está disponible (Expo Go)
+  console.log('react-native-maps no disponible - usando placeholder');
+}
 
 interface ShopWithDistance extends Shop {
   distance?: number;
@@ -120,53 +135,68 @@ const MapScreen = () => {
       </View>
 
       <View style={styles.mapContainer}>
-        <MapView
-          provider={PROVIDER_GOOGLE}
-          style={styles.map}
-          initialRegion={{
-            latitude: user?.latitude || -34.6037,
-            longitude: user?.longitude || -58.3816,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-          showsCompass={true}
-          showsScale={true}
-        >
-          {/* Marcador del usuario */}
-          {user?.latitude && user?.longitude && (
-            <Marker
-              coordinate={{
-                latitude: user.latitude,
-                longitude: user.longitude,
-              }}
-              title="Tu ubicación"
-              description={user.city && user.province ? `${user.city}, ${user.province}` : 'Mi ubicación'}
-              pinColor="#4285F4"
-            />
-          )}
-
-          {/* Marcadores de tiendas */}
-          {shops.map((shop) => {
-            if (!shop.latitude || !shop.longitude) return null;
-            const isSelected = selectedShop?.id === shop.id;
-
-            return (
+        {MapView ? (
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={{
+              latitude: user?.latitude || -34.6037,
+              longitude: user?.longitude || -58.3816,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            }}
+            showsUserLocation={true}
+            showsMyLocationButton={true}
+            showsCompass={true}
+            showsScale={true}
+          >
+            {/* Marcador del usuario */}
+            {user?.latitude && user?.longitude && (
               <Marker
-                key={shop.id}
                 coordinate={{
-                  latitude: shop.latitude,
-                  longitude: shop.longitude,
+                  latitude: user.latitude,
+                  longitude: user.longitude,
                 }}
-                title={shop.name}
-                description={`${shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}${shop.distance ? ` - ${shop.distance}km` : ''}`}
-                pinColor={isSelected ? '#FF6B35' : COLORS.primary}
-                onPress={() => setSelectedShop(shop)}
+                title="Tu ubicación"
+                description={user.city && user.province ? `${user.city}, ${user.province}` : 'Mi ubicación'}
+                pinColor="#4285F4"
               />
-            );
-          })}
-        </MapView>
+            )}
+
+            {/* Marcadores de tiendas */}
+            {shops.map((shop) => {
+              if (!shop.latitude || !shop.longitude) return null;
+              const isSelected = selectedShop?.id === shop.id;
+
+              return (
+                <Marker
+                  key={shop.id}
+                  coordinate={{
+                    latitude: shop.latitude,
+                    longitude: shop.longitude,
+                  }}
+                  title={shop.name}
+                  description={`${shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}${shop.distance ? ` - ${shop.distance}km` : ''}`}
+                  pinColor={isSelected ? '#FF6B35' : COLORS.primary}
+                  onPress={() => setSelectedShop(shop)}
+                />
+              );
+            })}
+          </MapView>
+        ) : (
+          /* Placeholder para Expo Go */
+          <View style={styles.mapPlaceholder}>
+            <Ionicons name="map-outline" size={64} color="#999" />
+            <Text style={styles.placeholderTitle}>Mapa no disponible en Expo Go</Text>
+            <Text style={styles.placeholderText}>
+              Para ver el mapa, ejecuta:{'\n'}
+              <Text style={styles.placeholderCode}>npx expo run:android</Text>
+            </Text>
+            <Text style={styles.placeholderHint}>
+              Ver guía: QUICK_START_MAP.md
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.bottomSheet}>
@@ -327,6 +357,44 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
+  },
+  mapPlaceholder: {
+    flex: 1,
+    backgroundColor: '#E8F5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  placeholderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginTop: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  placeholderCode: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  placeholderHint: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   bottomSheet: {
     backgroundColor: '#fff',
