@@ -6,9 +6,10 @@ import { COLORS } from '../constants/colors';
 interface ProductCardProps {
   product: Product;
   onPress: () => void;
+  onShopPress?: () => void;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onShopPress }) => {
   const formatPrice = (price: string) => {
     return `$${parseFloat(price).toLocaleString('es-AR')}`;
   };
@@ -22,7 +23,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
       />
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={2}>{product.name}</Text>
-        <Text style={styles.brand} numberOfLines={1}>{product.brand}</Text>
+        {onShopPress && product.shop ? (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onShopPress();
+            }}
+          >
+            <Text style={[styles.brand, styles.brandClickable]} numberOfLines={1}>
+              {product.shop.name}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.brand} numberOfLines={1}>
+            {product.shop?.name || product.brand}
+          </Text>
+        )}
         <View style={styles.priceContainer}>
           <Text style={styles.price}>{formatPrice(product.priceRetail)}</Text>
           <TouchableOpacity style={styles.addButton}>
@@ -66,6 +82,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginBottom: 8,
+  },
+  brandClickable: {
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
   },
   priceContainer: {
     flexDirection: 'row',

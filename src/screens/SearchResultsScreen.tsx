@@ -13,40 +13,56 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import { productService } from '../services/api';
 import { Product } from '../types/product.types';
+import { useAuth } from '../context/AuthContext';
 
-interface ProductListScreenProps {
+interface SearchResultsScreenProps {
   navigation: any;
   route: any;
 }
 
-const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route }) => {
-  const { title, categoryId, categoryName } = route.params || {};
+const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ navigation, route }) => {
+  const { initialQuery } = route.params || {};
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedFilters, setSelectedFilters] = useState<string[]>(
-    categoryName ? [categoryName] : []
-  );
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(initialQuery || '');
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [total, setTotal] = useState(0);
 
   const filters = ['Comida', 'Gato', 'Perro', 'Tortugas'];
 
   useEffect(() => {
-    fetchProducts();
-  }, [categoryId]);
+    if (searchQuery && searchQuery.length >= 2) {
+      performSearch();
+    }
+  }, [searchQuery]);
 
-  const fetchProducts = async () => {
+  const performSearch = async () => {
     try {
       setLoading(true);
-      const params: any = { inStock: true, page: 1, limit: 20 };
+      const params: {
+        query: string;
+        limit?: number;
+        latitude?: number;
+        longitude?: number;
+      } = {
+        query: searchQuery,
+        limit: 20,
+      };
 
-      // Si hay un categoryId, filtrar por categoría
-      if (categoryId) {
-        params.categoryId = categoryId;
+      // Add user location if available
+      if (user?.latitude && user?.longitude) {
+        params.latitude = typeof user.latitude === 'string' ? parseFloat(user.latitude) : user.latitude;
+        params.longitude = typeof user.longitude === 'string' ? parseFloat(user.longitude) : user.longitude;
       }
 
-      const response = await productService.getAll(params);
-      setProducts(response.data);
+      const response = await productService.search(params);
+      setProducts(response.data || []);
+      setTotal(response.total || 0);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('Error searching products:', error);
+      setProducts([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -60,13 +76,11 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
+  const handleSearch = () => {
+    if (searchQuery.length >= 2) {
+      performSearch();
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -74,13 +88,22 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.searchContainer}
-          onPress={() => navigation.navigate('SearchResults', {})}
-        >
+        <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={20} color="#999" />
-          <Text style={styles.searchPlaceholder}>Busca alimentos, juguetes...</Text>
-        </TouchableOpacity>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Busca alimentos, juguetes..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+            autoFocus={true}
+          />
+          {loading && (
+            <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchLoader} />
+          )}
+        </View>
         <TouchableOpacity style={styles.cartButton}>
           <Ionicons name="cart-outline" size={28} color="#fff" />
         </TouchableOpacity>
@@ -88,11 +111,21 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>{categoryName || title || 'Resultados'}</Text>
+          <Text style={styles.title}>Resultados</Text>
           <TouchableOpacity style={styles.filterButton}>
             <Ionicons name="options-outline" size={24} color={COLORS.text} />
           </TouchableOpacity>
         </View>
+
+        {loading && products.length === 0 && searchQuery.length >= 2 && (
+          <Text style={styles.resultsCount}>Buscando productos...</Text>
+        )}
+
+        {!loading && total > 0 && (
+          <Text style={styles.resultsCount}>
+            {total} {total === 1 ? 'producto encontrado' : 'productos encontrados'}
+          </Text>
+        )}
 
         <ScrollView
           horizontal
@@ -138,6 +171,14 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
                     key={product.id}
                     product={product}
                     onPress={() => navigation.navigate('ProductDetail', { product })}
+                    onShopPress={
+                      product.shop
+                        ? () => {
+                            // @ts-ignore
+                            navigation.navigate('ShopDetail', { shop: product.shop });
+                          }
+                        : undefined
+                    }
                   />
                 </React.Fragment>
               );
@@ -147,10 +188,28 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
                 key={product.id}
                 product={product}
                 onPress={() => navigation.navigate('ProductDetail', { product })}
+                onShopPress={
+                  product.shop
+                    ? () => {
+                        // @ts-ignore
+                        navigation.navigate('ShopDetail', { shop: product.shop });
+                      }
+                    : undefined
+                }
               />
             );
           })}
         </View>
+
+        {products.length === 0 && !loading && (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="search-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>No se encontraron productos</Text>
+            <Text style={styles.emptySubtext}>
+              Intenta con otro término de búsqueda
+            </Text>
+          </View>
+        )}
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -160,10 +219,15 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
 
 interface ProductGridCardProps {
   product: Product;
-  onPress?: () => void;
+  onPress: () => void;
+  onShopPress?: () => void;
 }
 
-const ProductGridCard: React.FC<ProductGridCardProps> = ({ product, onPress }) => {
+const ProductGridCard: React.FC<ProductGridCardProps> = ({ product, onPress, onShopPress }) => {
+  const formatPrice = (price: string | number) => {
+    return `$${parseFloat(price.toString()).toLocaleString('es-CL')}`;
+  };
+
   return (
     <TouchableOpacity style={styles.productCard} onPress={onPress}>
       <View style={styles.productImageContainer}>
@@ -176,16 +240,29 @@ const ProductGridCard: React.FC<ProductGridCardProps> = ({ product, onPress }) =
       <Text style={styles.productName} numberOfLines={2}>
         {product.name}
       </Text>
-      <Text style={styles.shopName} numberOfLines={1}>
-        {product.shop?.name || 'Tienda'}
-      </Text>
-      <Text style={styles.productPrice}>${product.priceRetail}</Text>
+      {onShopPress && product.shop ? (
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation();
+            onShopPress();
+          }}
+        >
+          <Text style={[styles.shopName, styles.shopNameClickable]} numberOfLines={1}>
+            {product.shop.name}
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.shopName} numberOfLines={1}>
+          {product.shop?.name || product.brand}
+        </Text>
+      )}
+      <Text style={styles.productPrice}>{formatPrice(product.priceRetail)}</Text>
       <Text style={styles.productStock}>Disponible</Text>
       <TouchableOpacity
         style={styles.addButton}
         onPress={(e) => {
           e.stopPropagation();
-          // Aquí puedes agregar lógica para añadir al carrito directamente
+          console.log('Agregar producto:', product.name);
         }}
       >
         <Ionicons name="add" size={24} color="#fff" />
@@ -232,10 +309,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text,
   },
-  searchPlaceholder: {
-    flex: 1,
-    fontSize: 14,
-    color: '#999',
+  searchLoader: {
+    marginLeft: 8,
   },
   cartButton: {
     padding: 4,
@@ -249,12 +324,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: COLORS.text,
+  },
+  resultsCount: {
+    fontSize: 14,
+    color: '#666',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   filterButton: {
     padding: 4,
@@ -336,15 +417,19 @@ const styles = StyleSheet.create({
     color: '#999',
     marginBottom: 6,
   },
+  shopNameClickable: {
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
+  },
   productPrice: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.text,
+    color: COLORS.primary,
     marginBottom: 4,
   },
   productStock: {
     fontSize: 12,
-    color: '#4CAF50',
+    color: '#666',
     marginBottom: 8,
   },
   addButton: {
@@ -384,9 +469,28 @@ const styles = StyleSheet.create({
     color: '#B8E6D5',
     fontWeight: 'bold',
   },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
   bottomPadding: {
     height: 100,
   },
 });
 
-export default ProductListScreen;
+export default SearchResultsScreen;

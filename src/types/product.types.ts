@@ -53,6 +53,9 @@ export interface Shop {
   updatedAt: string;
   owner?: Owner;
   isOpenNow?: boolean;
+  distance?: number; // Distance in km (returned by search API)
+  rating?: number; // Shop rating (returned by search API)
+  reviewCount?: number; // Number of reviews (returned by search API)
 }
 
 export interface Schedule {

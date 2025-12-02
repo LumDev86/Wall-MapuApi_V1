@@ -7,13 +7,22 @@ import HomeScreen from '../screens/HomeScreen';
 import MapScreen from '../screens/MapScreen';
 import CatalogScreen from '../screens/CatalogScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import ProductListScreen from '../screens/ProductListScreen';
+import ProductDetailScreen from '../screens/ProductDetailScreen';
+import ShopDetailScreen from '../screens/ShopDetailScreen';
+import SearchResultsScreen from '../screens/SearchResultsScreen';
 import { COLORS } from '../constants/colors';
+import { Product, Shop } from '../types/product.types';
 
 export type BottomTabParamList = {
   Inicio: undefined;
   Mapa: undefined;
   Catalogo: undefined;
   Perfil: undefined;
+  ProductList: { title?: string; categoryId?: string; categoryName?: string };
+  ProductDetail: { product: Product };
+  ShopDetail: { shopId: string } | { shop: Shop };
+  SearchResults: { initialQuery?: string };
 };
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
@@ -84,6 +93,35 @@ const BottomTabNavigator = () => {
           ),
         }}
       />
+      {/* Pantallas ocultas - no aparecen en la barra de tabs */}
+      <Tab.Screen
+        name="ProductList"
+        component={ProductListScreen}
+        options={{
+          tabBarButton: () => null, // Oculta el botón del tab
+        }}
+      />
+      <Tab.Screen
+        name="ProductDetail"
+        component={ProductDetailScreen}
+        options={{
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="ShopDetail"
+        component={ShopDetailScreen}
+        options={{
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="SearchResults"
+        component={SearchResultsScreen}
+        options={{
+          tabBarButton: () => null,
+        }}
+      />
     </Tab.Navigator>
   );
 };
@@ -97,17 +135,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    paddingTop: 8,
+    paddingTop: 10,
     position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
     borderRadius: 16,
-    minWidth: 75,
-    gap: 2,
+    minWidth: 70,
+    gap: 4,
   },
   tabItemActive: {
     backgroundColor: '#D4F1E8',

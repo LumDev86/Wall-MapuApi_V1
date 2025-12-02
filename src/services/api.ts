@@ -80,8 +80,19 @@ export const productService = {
     maxPrice?: number;
     page?: number;
     limit?: number;
+    shopId?: string;
   }): Promise<ProductsResponse> => {
     const response = await api.get<ProductsResponse>('/products', { params });
+    return response.data;
+  },
+
+  search: async (params: {
+    query: string;
+    limit?: number;
+    latitude?: number;
+    longitude?: number;
+  }) => {
+    const response = await api.get('/products/search', { params });
     return response.data;
   },
 };
@@ -96,6 +107,11 @@ export const shopService = {
     openNow?: boolean;
   }): Promise<ShopsResponse> => {
     const response = await api.get<ShopsResponse>('/shops', { params });
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await api.get(`/shops/${id}`);
     return response.data;
   },
 };

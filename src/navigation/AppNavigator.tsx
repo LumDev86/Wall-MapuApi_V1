@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/Auth/LoginScreen';
 import RegisterScreen from '../screens/Auth/RegisterScreen';
 import BottomTabNavigator from './BottomTabNavigator';
-import ProductListScreen from '../screens/ProductListScreen';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { COLORS } from '../constants/colors';
 
@@ -14,13 +13,7 @@ export type AuthStackParamList = {
   Register: undefined;
 };
 
-export type MainStackParamList = {
-  HomeTabs: undefined;
-  ProductList: { title?: string; categoryId?: string; categoryName?: string };
-};
-
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const MainStack = createNativeStackNavigator<MainStackParamList>();
 
 const AuthNavigator = () => {
   return (
@@ -32,19 +25,6 @@ const AuthNavigator = () => {
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Register" component={RegisterScreen} />
     </AuthStack.Navigator>
-  );
-};
-
-const RootNavigator = () => {
-  return (
-    <MainStack.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <MainStack.Screen name="HomeTabs" component={BottomTabNavigator} />
-      <MainStack.Screen name="ProductList" component={ProductListScreen} />
-    </MainStack.Navigator>
   );
 };
 
@@ -61,7 +41,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      {user ? <RootNavigator /> : <AuthNavigator />}
+      {user ? <BottomTabNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
 };

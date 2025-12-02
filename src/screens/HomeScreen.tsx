@@ -32,7 +32,6 @@ const HomeScreen = () => {
   const [nearbyShops, setNearbyShops] = useState<Shop[]>([]);
   const [openNowShops, setOpenNowShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -106,16 +105,16 @@ const HomeScreen = () => {
           </Text>
         </View>
 
-        <View style={styles.searchContainer}>
+        <TouchableOpacity
+          style={styles.searchContainer}
+          onPress={() => {
+            // @ts-ignore
+            navigation.navigate('SearchResults', {});
+          }}
+        >
           <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Busca alimentos, juguetes, accesori..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+          <Text style={styles.searchPlaceholder}>Busca alimentos, juguetes, accesori...</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.categoriesSection}>
@@ -174,7 +173,10 @@ const HomeScreen = () => {
             <NearbyShopCard
               key={shop.id}
               shop={shop}
-              onPress={() => console.log('Shop:', shop.name)}
+              onPress={() => {
+                // @ts-ignore - navegación a pantalla del stack padre
+                navigation.navigate('ShopDetail', { shop });
+              }}
               distance="0.5Km"
               productCount={200}
               categories={['Vacas', 'Gatos', 'Perros']}
@@ -194,7 +196,10 @@ const HomeScreen = () => {
             <NearbyShopCard
               key={shop.id}
               shop={shop}
-              onPress={() => console.log('Shop:', shop.name)}
+              onPress={() => {
+                // @ts-ignore - navegación a pantalla del stack padre
+                navigation.navigate('ShopDetail', { shop });
+              }}
               distance="0.5Km"
               productCount={200}
               categories={['Vacas', 'Gatos', 'Perros']}
@@ -263,7 +268,18 @@ const HomeScreen = () => {
             <ProductCard
               key={product.id}
               product={product}
-              onPress={() => console.log('Product:', product.name)}
+              onPress={() => {
+                // @ts-ignore - navegación a pantalla del stack padre
+                navigation.navigate('ProductDetail', { product });
+              }}
+              onShopPress={
+                product.shop
+                  ? () => {
+                      // @ts-ignore - navegación a pantalla del stack padre
+                      navigation.navigate('ShopDetail', { shop: product.shop });
+                    }
+                  : undefined
+              }
             />
           ))}
         </ScrollView>
@@ -290,7 +306,18 @@ const HomeScreen = () => {
             <ProductCard
               key={product.id}
               product={product}
-              onPress={() => console.log('Product:', product.name)}
+              onPress={() => {
+                // @ts-ignore - navegación a pantalla del stack padre
+                navigation.navigate('ProductDetail', { product });
+              }}
+              onShopPress={
+                product.shop
+                  ? () => {
+                      // @ts-ignore - navegación a pantalla del stack padre
+                      navigation.navigate('ShopDetail', { shop: product.shop });
+                    }
+                  : undefined
+              }
             />
           ))}
         </ScrollView>
@@ -402,6 +429,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: COLORS.text,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 14,
+    color: '#999',
   },
   categoriesSection: {
     marginTop: 20,

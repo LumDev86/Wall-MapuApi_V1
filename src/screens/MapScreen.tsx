@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/colors';
 import { shopService } from '../services/api';
@@ -36,10 +37,10 @@ interface ShopWithDistance extends Shop {
 }
 
 const MapScreen = () => {
+  const navigation = useNavigation();
   const { user } = useAuth();
   const [shops, setShops] = useState<ShopWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedShop, setSelectedShop] = useState<ShopWithDistance | null>(null);
 
   useEffect(() => {
@@ -69,11 +70,16 @@ const MapScreen = () => {
       const shopsWithDistance = response.data
         .map((shop: Shop) => {
           if (shop.latitude && shop.longitude && user?.latitude && user?.longitude) {
+            const userLat = typeof user.latitude === 'string' ? parseFloat(user.latitude) : user.latitude;
+            const userLon = typeof user.longitude === 'string' ? parseFloat(user.longitude) : user.longitude;
+            const shopLat = typeof shop.latitude === 'string' ? parseFloat(shop.latitude) : shop.latitude;
+            const shopLon = typeof shop.longitude === 'string' ? parseFloat(shop.longitude) : shop.longitude;
+
             const distance = calculateDistance(
-              user.latitude,
-              user.longitude,
-              shop.latitude,
-              shop.longitude
+              userLat,
+              userLon,
+              shopLat,
+              shopLon
             );
             return { ...shop, distance };
           }
@@ -123,16 +129,16 @@ const MapScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchContainer}>
+      <TouchableOpacity
+        style={styles.searchContainer}
+        onPress={() => {
+          // @ts-ignore
+          navigation.navigate('SearchResults', {});
+        }}
+      >
         <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Busca alimentos, juguetes, accesori..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+        <Text style={styles.searchPlaceholder}>Busca alimentos, juguetes, accesori...</Text>
+      </TouchableOpacity>
 
       <View style={styles.mapContainer}>
         {MapView ? (
@@ -346,6 +352,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: COLORS.text,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 14,
+    color: '#999',
   },
   mapContainer: {
     flex: 1,
