@@ -6,6 +6,9 @@ import LoginScreen from '../screens/Auth/LoginScreen';
 import RegisterScreen from '../screens/Auth/RegisterScreen';
 import BottomTabNavigator from './BottomTabNavigator';
 import ProductListScreen from '../screens/ProductListScreen';
+import ProductDetailScreen from '../screens/ProductDetailScreen';
+import ShopDetailScreen from '../screens/ShopDetailScreen';
+import SearchScreen from '../screens/SearchScreen';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { COLORS } from '../constants/colors';
 
@@ -16,7 +19,10 @@ export type AuthStackParamList = {
 
 export type MainStackParamList = {
   HomeTabs: undefined;
-  ProductList: { title?: string; categoryId?: string; categoryName?: string };
+  ProductList: { title?: string; categoryId?: string; categoryName?: string; shopId?: string };
+  ProductDetail: { productId: string };
+  ShopDetail: { shopId: string };
+  Search: undefined;
 };
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -44,6 +50,9 @@ const RootNavigator = () => {
     >
       <MainStack.Screen name="HomeTabs" component={BottomTabNavigator} />
       <MainStack.Screen name="ProductList" component={ProductListScreen} />
+      <MainStack.Screen name="ProductDetail" component={ProductDetailScreen} />
+      <MainStack.Screen name="ShopDetail" component={ShopDetailScreen} />
+      <MainStack.Screen name="Search" component={SearchScreen} />
     </MainStack.Navigator>
   );
 };

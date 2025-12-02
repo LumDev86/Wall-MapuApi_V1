@@ -41,3 +41,20 @@ export interface AuthResponse {
   user: User;
   token: string;
 }
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface UpdateLocationRequest {
+  province?: string;
+  city?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+}

@@ -13,7 +13,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { COLORS } from '../constants/colors';
 import { CategoryCard } from '../components/CategoryCard';
 import { ProductCard } from '../components/ProductCard';
@@ -22,10 +25,13 @@ import { NearbyShopCard } from '../components/NearbyShopCard';
 import { categoryService, productService, shopService } from '../services/api';
 import { Category, Product, Shop } from '../types/product.types';
 
+type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+
 const HomeScreen = () => {
   const { user, logout } = useAuth();
+  const { getTotalItems } = useCart();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp>();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [popularProducts, setPopularProducts] = useState<Product[]>([]);
@@ -77,7 +83,7 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.locationButton}>
@@ -90,9 +96,11 @@ const HomeScreen = () => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.cartButton}>
             <Ionicons name="cart-outline" size={28} color="#fff" />
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>1</Text>
-            </View>
+            {getTotalItems() > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{getTotalItems()}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -106,16 +114,14 @@ const HomeScreen = () => {
           </Text>
         </View>
 
-        <View style={styles.searchContainer}>
+        <TouchableOpacity
+          style={styles.searchContainer}
+          onPress={() => navigation.navigate('Search')}
+          activeOpacity={0.7}
+        >
           <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Busca alimentos, juguetes, accesori..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+          <Text style={styles.searchPlaceholder}>Busca alimentos, juguetes, accesori...</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.categoriesSection}>
@@ -129,7 +135,6 @@ const HomeScreen = () => {
               key={category.id}
               category={category}
               onPress={() => {
-                // @ts-ignore - navegación a pantalla del stack padre
                 navigation.navigate('ProductList', {
                   categoryId: category.id,
                   categoryName: category.name,
@@ -174,7 +179,7 @@ const HomeScreen = () => {
             <NearbyShopCard
               key={shop.id}
               shop={shop}
-              onPress={() => console.log('Shop:', shop.name)}
+              onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
               distance="0.5Km"
               productCount={200}
               categories={['Vacas', 'Gatos', 'Perros']}
@@ -194,7 +199,7 @@ const HomeScreen = () => {
             <NearbyShopCard
               key={shop.id}
               shop={shop}
-              onPress={() => console.log('Shop:', shop.name)}
+              onPress={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
               distance="0.5Km"
               productCount={200}
               categories={['Vacas', 'Gatos', 'Perros']}
@@ -233,8 +238,7 @@ const HomeScreen = () => {
           <TouchableOpacity
             style={styles.mapButton}
             onPress={() => {
-              // @ts-ignore - navegación a tab
-              navigation.navigate('Mapa');
+              navigation.navigate('HomeTabs', undefined);
             }}
           >
             <Text style={styles.mapButtonText}>Ver Mapa</Text>
@@ -247,7 +251,6 @@ const HomeScreen = () => {
           <Text style={styles.sectionTitle}>Más populares</Text>
           <TouchableOpacity
             onPress={() => {
-              // @ts-ignore - navegación a pantalla del stack padre
               navigation.navigate('ProductList', { title: 'Más populares' });
             }}
           >
@@ -263,7 +266,7 @@ const HomeScreen = () => {
             <ProductCard
               key={product.id}
               product={product}
-              onPress={() => console.log('Product:', product.name)}
+              onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
             />
           ))}
         </ScrollView>
@@ -274,7 +277,6 @@ const HomeScreen = () => {
           <Text style={styles.sectionTitle}>Ofertas</Text>
           <TouchableOpacity
             onPress={() => {
-              // @ts-ignore - navegación a pantalla del stack padre
               navigation.navigate('ProductList', { title: 'Ofertas' });
             }}
           >
@@ -290,7 +292,7 @@ const HomeScreen = () => {
             <ProductCard
               key={product.id}
               product={product}
-              onPress={() => console.log('Product:', product.name)}
+              onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
             />
           ))}
         </ScrollView>
@@ -402,6 +404,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: COLORS.text,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 14,
+    color: '#999',
   },
   categoriesSection: {
     marginTop: 20,

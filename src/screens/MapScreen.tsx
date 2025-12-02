@@ -1,20 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
   Image,
   Platform,
+  Alert,
+  TextInput,
+  FlatList,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainStackParamList } from '../navigation/AppNavigator';
+import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { COLORS } from '../constants/colors';
 import { shopService } from '../services/api';
 import { Shop } from '../types/product.types';
+
+type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
 
 // Importación condicional de react-native-maps
 let MapView: any = null;
@@ -35,16 +45,54 @@ interface ShopWithDistance extends Shop {
   distance?: number;
 }
 
+interface PlacePrediction {
+  place_id: string;
+  description: string;
+  structured_formatting: {
+    main_text: string;
+    secondary_text: string;
+  };
+}
+
 const MapScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
+  const { getTotalItems } = useCart();
   const [shops, setShops] = useState<ShopWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedShop, setSelectedShop] = useState<ShopWithDistance | null>(null);
+  const [deviceLocation, setDeviceLocation] = useState<Location.LocationObject | null>(null);
+  const [locationPermission, setLocationPermission] = useState(false);
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<PlacePrediction[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const mapRef = useRef<any>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchShops();
+    requestLocationPermission();
   }, []);
+
+  // Función para solicitar permisos y obtener ubicación del dispositivo
+  const requestLocationPermission = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        setLocationPermission(true);
+        const location = await Location.getCurrentPositionAsync({});
+        setDeviceLocation(location);
+        return location;
+      } else {
+        Alert.alert('Permiso denegado', 'Necesitamos acceso a tu ubicación para mostrar tiendas cercanas');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      return null;
+    }
+  };
 
   // Fórmula de Haversine para calcular distancia entre dos coordenadas
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -63,27 +111,37 @@ const MapScreen = () => {
   const fetchShops = async () => {
     try {
       setLoading(true);
-      const response = await shopService.getAll({ page: 1, limit: 10 });
+      const response = await shopService.getAll({
+        page: 1,
+        limit: 100,
+        status: 'active' // Solo tiendas con suscripción activa
+      });
 
-      // Calcular distancias y ordenar por proximidad
-      const shopsWithDistance = response.data
-        .map((shop: Shop) => {
-          if (shop.latitude && shop.longitude && user?.latitude && user?.longitude) {
-            const distance = calculateDistance(
-              user.latitude,
-              user.longitude,
-              shop.latitude,
-              shop.longitude
-            );
-            return { ...shop, distance };
-          }
-          return { ...shop, distance: undefined };
-        })
-        .sort((a, b) => {
+      // Calcular distancias y ordenar por proximidad si tenemos ubicación de referencia
+      const refLat = deviceLocation?.coords.latitude || user?.latitude;
+      const refLon = deviceLocation?.coords.longitude || user?.longitude;
+
+      const shopsWithDistance = response.data.map((shop: Shop) => {
+        if (shop.latitude && shop.longitude && refLat && refLon) {
+          const distance = calculateDistance(
+            refLat,
+            refLon,
+            parseFloat(shop.latitude),
+            parseFloat(shop.longitude)
+          );
+          return { ...shop, distance };
+        }
+        return { ...shop, distance: undefined };
+      });
+
+      // Ordenar solo si tenemos distancias
+      if (refLat && refLon) {
+        shopsWithDistance.sort((a, b) => {
           if (a.distance === undefined) return 1;
           if (b.distance === undefined) return -1;
           return a.distance - b.distance;
         });
+      }
 
       setShops(shopsWithDistance);
       if (shopsWithDistance.length > 0) {
@@ -95,6 +153,97 @@ const MapScreen = () => {
       setLoading(false);
     }
   };
+
+  const searchPlaces = async (query: string) => {
+    if (query.length < 3) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+          query
+        )}&key=${apiKey}&language=es&components=country:ar`
+      );
+      const data = await response.json();
+
+      if (data.status === 'OK' && data.predictions) {
+        setSearchResults(data.predictions);
+        setShowSearchResults(true);
+      } else {
+        setSearchResults([]);
+        setShowSearchResults(false);
+      }
+    } catch (error) {
+      console.error('Error en búsqueda de lugares:', error);
+      setSearchResults([]);
+      setShowSearchResults(false);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handlePlaceSelect = async (placeId: string, description: string) => {
+    setLocationSearchQuery(description);
+    setShowSearchResults(false);
+    setSearchResults([]);
+    Keyboard.dismiss();
+
+    try {
+      const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${apiKey}&language=es`
+      );
+      const data = await response.json();
+
+      if (data.status === 'OK' && data.result?.geometry?.location) {
+        const { lat, lng } = data.result.geometry.location;
+
+        // Animar el mapa a la nueva ubicación
+        const newRegion = {
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        };
+
+        if (mapRef.current && MapView) {
+          mapRef.current.animateToRegion(newRegion, 1000);
+        }
+      } else {
+        Alert.alert('Error', 'No se pudo obtener la ubicación del lugar seleccionado');
+      }
+    } catch (error) {
+      console.error('Error al obtener detalles del lugar:', error);
+      Alert.alert('Error', 'Error al obtener la ubicación');
+    }
+  };
+
+  // Efecto para búsqueda con debounce
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (locationSearchQuery.trim()) {
+      searchTimeoutRef.current = setTimeout(() => {
+        searchPlaces(locationSearchQuery);
+      }, 500);
+    } else {
+      setSearchResults([]);
+      setShowSearchResults(false);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [locationSearchQuery]);
 
   if (loading) {
     return (
@@ -117,48 +266,98 @@ const MapScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity style={styles.cartButton}>
           <Ionicons name="cart-outline" size={28} color="#fff" />
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>1</Text>
-          </View>
+          {getTotalItems() > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{getTotalItems()}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Busca alimentos, juguetes, accesori..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+      {/* Buscador de ubicaciones */}
+      <View style={styles.locationSearchWrapper}>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar ubicación..."
+            placeholderTextColor="#999"
+            value={locationSearchQuery}
+            onChangeText={setLocationSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchLoading && (
+            <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchLoader} />
+          )}
+          {locationSearchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                setLocationSearchQuery('');
+                setSearchResults([]);
+                setShowSearchResults(false);
+              }}
+              style={styles.clearButton}
+            >
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Lista de sugerencias */}
+        {showSearchResults && searchResults.length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.place_id}
+              scrollEnabled={false}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.suggestionItem}
+                  onPress={() => handlePlaceSelect(item.place_id, item.description)}
+                >
+                  <Ionicons name="location-outline" size={20} color={COLORS.primary} />
+                  <View style={styles.suggestionTextContainer}>
+                    <Text style={styles.suggestionMainText}>
+                      {item.structured_formatting.main_text}
+                    </Text>
+                    <Text style={styles.suggestionSecondaryText}>
+                      {item.structured_formatting.secondary_text}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        )}
       </View>
 
       <View style={styles.mapContainer}>
         {MapView ? (
           <MapView
+            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.map}
             initialRegion={{
-              latitude: user?.latitude || -34.6037,
-              longitude: user?.longitude || -58.3816,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
+              latitude: deviceLocation?.coords.latitude || user?.latitude || -32.4827, // Concepción del Uruguay por defecto
+              longitude: deviceLocation?.coords.longitude || user?.longitude || -58.2363,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
             }}
             showsUserLocation={true}
             showsMyLocationButton={true}
             showsCompass={true}
             showsScale={true}
           >
-            {/* Marcador del usuario */}
-            {user?.latitude && user?.longitude && (
+            {/* Marcador del usuario (solo si tiene coordenadas) */}
+            {(deviceLocation || (user?.latitude && user?.longitude)) && (
               <Marker
                 coordinate={{
-                  latitude: user.latitude,
-                  longitude: user.longitude,
+                  latitude: deviceLocation?.coords.latitude || user?.latitude || -32.4827,
+                  longitude: deviceLocation?.coords.longitude || user?.longitude || -58.2363,
                 }}
                 title="Tu ubicación"
-                description={user.city && user.province ? `${user.city}, ${user.province}` : 'Mi ubicación'}
+                description={user?.city && user?.province ? `${user.city}, ${user.province}` : 'Mi ubicación'}
                 pinColor="#4285F4"
               />
             )}
@@ -172,8 +371,8 @@ const MapScreen = () => {
                 <Marker
                   key={shop.id}
                   coordinate={{
-                    latitude: shop.latitude,
-                    longitude: shop.longitude,
+                    latitude: parseFloat(shop.latitude),
+                    longitude: parseFloat(shop.longitude),
                   }}
                   title={shop.name}
                   description={`${shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}${shop.distance ? ` - ${shop.distance}km` : ''}`}
@@ -207,11 +406,11 @@ const MapScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {!user?.latitude || !user?.longitude ? (
+        {shops.length === 0 && !loading ? (
           <View style={styles.noLocationContainer}>
             <Ionicons name="location-outline" size={48} color="#999" />
             <Text style={styles.noLocationText}>
-              Configura tu ubicación en el perfil para ver tiendas cercanas
+              No hay tiendas disponibles en este momento
             </Text>
           </View>
         ) : null}
@@ -342,10 +541,61 @@ const styles = StyleSheet.create({
   searchIcon: {
     marginRight: 10,
   },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 14,
+    color: '#999',
+  },
+  locationSearchWrapper: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
   searchInput: {
     flex: 1,
     fontSize: 14,
     color: COLORS.text,
+  },
+  searchLoader: {
+    marginLeft: 8,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  suggestionsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    maxHeight: 200,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  suggestionTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  suggestionMainText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  suggestionSecondaryText: {
+    fontSize: 13,
+    color: '#666',
   },
   mapContainer: {
     flex: 1,

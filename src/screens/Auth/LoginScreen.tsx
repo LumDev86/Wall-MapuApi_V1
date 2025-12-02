@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
@@ -85,9 +86,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.logoContainer}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>WM</Text>
-          </View>
+          <Image
+            source={require('../../../assets/images/wallmapu-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
 
         <Text style={styles.title}>¡Bienvenido a Wallmapu!</Text>
@@ -180,17 +183,8 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   logo: {
-    width: 120,
-    height: 120,
-    backgroundColor: COLORS.primary,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: COLORS.white,
+    width: 150,
+    height: 150,
   },
   title: {
     fontSize: 28,

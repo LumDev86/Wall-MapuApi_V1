@@ -102,3 +102,108 @@ export interface Pagination {
   hasNextPage: boolean;
   hasPrevPage: boolean;
 }
+
+// =============================================================================
+// REQUEST TYPES
+// =============================================================================
+
+export interface ImageFile {
+  uri: string;
+  type?: string;
+  name?: string;
+}
+
+export interface CreateProductRequest {
+  name: string;
+  description?: string;
+  priceRetail: number;
+  priceWholesale?: number;
+  stock: number;
+  sku?: string;
+  barcode?: string;
+  brand?: string;
+  categoryId: string;
+  images?: ImageFile[];
+}
+
+export interface UpdateProductRequest {
+  name?: string;
+  description?: string;
+  priceRetail?: number;
+  priceWholesale?: number;
+  stock?: number;
+  sku?: string;
+  barcode?: string;
+  brand?: string;
+  categoryId?: string;
+  images?: ImageFile[];
+}
+
+export interface CreateShopRequest {
+  name: string;
+  description?: string;
+  address: string;
+  province: string;
+  city: string;
+  type: 'retailer' | 'wholesaler';
+  phone?: string;
+  email?: string;
+  website?: string;
+  latitude?: number;
+  longitude?: number;
+  schedule?: Schedule;
+  logo?: ImageFile;
+  banner?: ImageFile;
+}
+
+export interface UpdateShopRequest {
+  name?: string;
+  description?: string;
+  address?: string;
+  province?: string;
+  city?: string;
+  type?: 'retailer' | 'wholesaler';
+  phone?: string;
+  email?: string;
+  website?: string;
+  latitude?: number;
+  longitude?: number;
+  schedule?: Schedule;
+  logo?: ImageFile;
+  banner?: ImageFile;
+}
+
+// =============================================================================
+// SEARCH RESPONSE TYPES
+// =============================================================================
+
+export interface SearchProductShop {
+  id: string;
+  name: string;
+  rating?: number;
+  reviewCount?: number;
+  distance?: number;
+}
+
+export interface SearchProduct {
+  id: string;
+  name: string;
+  description: string;
+  brand: string;
+  priceRetail: number;
+  priceWholesale: number;
+  stock: number;
+  images: string[];
+  category: {
+    id: string;
+    name: string;
+  };
+  shop: SearchProductShop;
+}
+
+export interface SearchProductsResponse {
+  data: SearchProduct[];
+  total: number;
+  query: string;
+  cached: boolean;
+}

@@ -4,26 +4,32 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainStackParamList } from '../navigation/AppNavigator';
+import { useCart } from '../context/CartContext';
 import { COLORS } from '../constants/colors';
 import { productService } from '../services/api';
 import { Product } from '../types/product.types';
 
+type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+
 interface ProductListScreenProps {
-  navigation: any;
+  navigation: NavigationProp;
   route: any;
 }
 
 const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route }) => {
+  const screenNavigation = useNavigation<NavigationProp>();
+  const { getTotalItems } = useCart();
   const { title, categoryId, categoryName } = route.params || {};
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<string[]>(
     categoryName ? [categoryName] : []
   );
@@ -37,14 +43,20 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const params: any = { inStock: true, page: 1, limit: 20 };
+      const params = {
+        inStock: true,
+        page: 1,
+        limit: 20,
+        ...(categoryId && { categoryId }),
+      };
 
-      // Si hay un categoryId, filtrar por categoría
-      if (categoryId) {
-        params.categoryId = categoryId;
+      let response;
+      if (route.params?.shopId) {
+        response = await productService.getByShop(route.params.shopId, params);
+      } else {
+        response = await productService.getAll(params);
       }
 
-      const response = await productService.getAll(params);
       setProducts(response.data);
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -75,18 +87,21 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={styles.searchContainer}>
+        <TouchableOpacity
+          style={styles.searchContainer}
+          onPress={() => screenNavigation.navigate('Search')}
+          activeOpacity={0.7}
+        >
           <Ionicons name="search-outline" size={20} color="#999" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Busca alimentos, juguetes..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+          <Text style={styles.searchPlaceholder}>Busca productos, marcas...</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.cartButton}>
           <Ionicons name="cart-outline" size={28} color="#fff" />
+          {getTotalItems() > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{getTotalItems()}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -138,11 +153,11 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
                       </Text>
                     </View>
                   </View>
-                  <ProductGridCard key={product.id} product={product} />
+                  <ProductGridCard key={product.id} product={product} navigation={navigation} />
                 </React.Fragment>
               );
             }
-            return <ProductGridCard key={product.id} product={product} />;
+            return <ProductGridCard key={product.id} product={product} navigation={navigation} />;
           })}
         </View>
 
@@ -154,9 +169,10 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
 
 interface ProductGridCardProps {
   product: Product;
+  navigation: any;
 }
 
-const ProductGridCard: React.FC<ProductGridCardProps> = ({ product }) => {
+const ProductGridCard: React.FC<ProductGridCardProps> = ({ product, navigation }) => {
   return (
     <View style={styles.productCard}>
       <View style={styles.productImageContainer}>
@@ -174,7 +190,10 @@ const ProductGridCard: React.FC<ProductGridCardProps> = ({ product }) => {
       </Text>
       <Text style={styles.productPrice}>${product.priceRetail}</Text>
       <Text style={styles.productStock}>Disponible</Text>
-      <TouchableOpacity style={styles.addButton}>
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
+      >
         <Ionicons name="add" size={24} color="#fff" />
       </TouchableOpacity>
     </View>
@@ -214,13 +233,31 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 8,
   },
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.text,
+    color: '#999',
   },
   cartButton: {
+    position: 'relative',
     padding: 4,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   content: {
     flex: 1,

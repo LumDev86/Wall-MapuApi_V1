@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   ImageBackground,
@@ -12,17 +11,22 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { COLORS } from '../constants/colors';
 import { categoryService } from '../services/api';
 import { Category } from '../types/product.types';
 
+type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+
 const CatalogScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { getTotalItems } = useCart();
+  const [categories, setCategories] = React.useState<Category[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
   useEffect(() => {
     fetchCategories();
@@ -58,7 +62,7 @@ const CatalogScreen = () => {
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <TouchableOpacity style={styles.locationButton}>
@@ -71,22 +75,22 @@ const CatalogScreen = () => {
             </TouchableOpacity>
             <TouchableOpacity style={styles.cartButton}>
               <Ionicons name="cart-outline" size={28} color="#fff" />
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>1</Text>
-              </View>
+              {getTotalItems() > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{getTotalItems()}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
-          <View style={styles.searchContainer}>
+          <TouchableOpacity
+            style={styles.searchContainer}
+            onPress={() => navigation.navigate('Search')}
+            activeOpacity={0.7}
+          >
             <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Busca alimentos, juguetes, accesori..."
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
+            <Text style={styles.searchPlaceholder}>Busca productos, marcas...</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.content}>
@@ -100,7 +104,6 @@ const CatalogScreen = () => {
                   key={category.id}
                   style={styles.categoryCard}
                   onPress={() => {
-                    // @ts-ignore - navegación a pantalla del stack padre
                     navigation.navigate('ProductList', {
                       categoryId: category.id,
                       categoryName: category.name,
@@ -157,8 +160,7 @@ const CatalogScreen = () => {
               <TouchableOpacity
                 style={styles.mapButton}
                 onPress={() => {
-                  // @ts-ignore - navegación a tab
-                  navigation.navigate('Mapa');
+                  navigation.navigate('HomeTabs', undefined);
                 }}
               >
                 <Text style={styles.mapButtonText}>Ver Mapa</Text>
@@ -248,10 +250,10 @@ const styles = StyleSheet.create({
   searchIcon: {
     marginRight: 10,
   },
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.text,
+    color: '#999',
   },
   content: {
     paddingTop: 24,
