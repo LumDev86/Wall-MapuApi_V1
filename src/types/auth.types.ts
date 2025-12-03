@@ -20,15 +20,37 @@ export interface User {
   bannerImage?: string;
 }
 
+// Tipos para mascotas del cliente
+export interface Pet {
+  id: string;
+  type: 'dog' | 'cat' | 'other';
+  name: string;
+  breed: string;
+  age: string;
+}
+
+export type Gender = 'female' | 'male' | 'other';
+
 export interface RegisterRequest {
   email: string;
   password: string;
   name: string;
   phone: string;
   role: UserRole;
+  // Campos para tiendas
   province?: string;
   city?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
+  // Campos opcionales para clientes
+  birthDate?: string;
+  gender?: Gender;
+  barrio?: string;
+  hasDogs?: boolean;
+  hasCats?: boolean;
+  hasOtherPets?: boolean;
+  pets?: Pet[];
 }
 
 export interface LoginRequest {

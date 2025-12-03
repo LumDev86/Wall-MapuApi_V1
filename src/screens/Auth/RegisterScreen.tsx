@@ -11,7 +11,6 @@ import {
   Platform,
   ScrollView,
   Image,
-  Dimensions,
   FlatList,
   Keyboard,
 } from 'react-native';
@@ -35,6 +34,7 @@ interface PlacePrediction {
 }
 
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
+  // Datos básicos
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -43,6 +43,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [role, setRole] = useState<UserRole>('client');
+
+  // Ubicación (para tiendas)
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
@@ -53,18 +55,29 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     longitude: -58.3816,
   });
   const [loadingLocation, setLoadingLocation] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PlacePrediction[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+
+  // Términos y condiciones
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  // UI state
+  const [loading, setLoading] = useState(false);
+
   const mapRef = useRef<MapView>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { register } = useAuth();
 
   const validateForm = () => {
     if (!name || !email || !phone || !password || !confirmPassword) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      Alert.alert('Error', 'Por favor completa todos los campos obligatorios');
+      return false;
+    }
+
+    if (!acceptedTerms) {
+      Alert.alert('Error', 'Debes aceptar los términos y condiciones para continuar');
       return false;
     }
 
@@ -81,6 +94,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert('Error', 'Por favor ingresa un email válido');
+      return false;
+    }
+
+    // Para tiendas, la ubicación es obligatoria
+    if (role !== 'client' && !address) {
+      Alert.alert('Error', 'Por favor selecciona la ubicación de tu tienda');
       return false;
     }
 
@@ -258,17 +277,31 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await register({
+      // Datos base de registro
+      const registrationData: any = {
         name,
         email,
         phone,
         password,
         role,
-        province: province || undefined,
-        city: city || undefined,
-        address: address || undefined,
-      });
-      Alert.alert('Éxito', 'Cuenta creada exitosamente');
+      };
+
+      // Datos para tiendas (ubicación)
+      if (role !== 'client') {
+        registrationData.province = province || undefined;
+        registrationData.city = city || undefined;
+        registrationData.address = address || undefined;
+        registrationData.latitude = latitude;
+        registrationData.longitude = longitude;
+      }
+
+      const result = await register(registrationData);
+
+      // Para tiendas, mostrar mensaje de éxito
+      // Para clientes, la navegación a CompleteProfile es automática via AuthContext
+      if (!result.needsCompletion) {
+        Alert.alert('Éxito', 'Cuenta creada exitosamente');
+      }
     } catch (error: any) {
       const errorMessage = getErrorMessage(error);
       Alert.alert('Error', errorMessage);
@@ -342,110 +375,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             />
           </View>
 
-          <Text style={styles.label}>Ubicación de tu tienda</Text>
-          <Text style={styles.mapInstruction}>
-            Busca tu dirección o toca el mapa para seleccionar la ubicación
-          </Text>
-
-          {/* Buscador de direcciones */}
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar dirección..."
-              placeholderTextColor={COLORS.placeholder}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searchLoading && (
-              <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchLoader} />
-            )}
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => {
-                  setSearchQuery('');
-                  setSearchResults([]);
-                  setShowSearchResults(false);
-                }}
-                style={styles.clearButton}
-              >
-                <Ionicons name="close-circle" size={20} color="#999" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Lista de sugerencias */}
-          {showSearchResults && searchResults.length > 0 && (
-            <View style={styles.suggestionsContainer}>
-              <FlatList
-                data={searchResults}
-                keyExtractor={(item) => item.place_id}
-                scrollEnabled={false}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.suggestionItem}
-                    onPress={() => handlePlaceSelect(item.place_id, item.description)}
-                  >
-                    <Ionicons name="location-outline" size={20} color={COLORS.primary} />
-                    <View style={styles.suggestionTextContainer}>
-                      <Text style={styles.suggestionMainText}>
-                        {item.structured_formatting.main_text}
-                      </Text>
-                      <Text style={styles.suggestionSecondaryText}>
-                        {item.structured_formatting.secondary_text}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-          )}
-
-          <View style={styles.mapContainer}>
-            <MapView
-              ref={mapRef}
-              provider={PROVIDER_GOOGLE}
-              style={styles.map}
-              initialRegion={{
-                latitude: selectedLocation.latitude,
-                longitude: selectedLocation.longitude,
-                latitudeDelta: 0.0922,
-                longitudeDelta: 0.0421,
-              }}
-              onPress={handleMapPress}
-            >
-              <Marker
-                coordinate={selectedLocation}
-                draggable
-                onDragEnd={(e) => {
-                  const { latitude, longitude } = e.nativeEvent.coordinate;
-                  setSelectedLocation({ latitude, longitude });
-                  reverseGeocode(latitude, longitude);
-                }}
-              />
-            </MapView>
-            {loadingLocation && (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.loadingText}>Obteniendo dirección...</Text>
-              </View>
-            )}
-          </View>
-
-          {address && (
-            <View style={styles.addressInfo}>
-              <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
-              <View style={styles.addressTextContainer}>
-                <Text style={styles.addressLabel}>Dirección seleccionada:</Text>
-                <Text style={styles.addressText}>{address}</Text>
-                {city && <Text style={styles.addressDetail}>Ciudad: {city}</Text>}
-                {province && <Text style={styles.addressDetail}>Provincia: {province}</Text>}
-              </View>
-            </View>
-          )}
-
+          {/* Tipo de cuenta */}
           <Text style={styles.label}>Tipo de cuenta</Text>
           <View style={styles.roleContainer}>
             {roleOptions.map((option) => (
@@ -468,6 +398,123 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* SECCIÓN DE UBICACIÓN - Solo para tiendas */}
+          {role !== 'client' && (
+            <>
+              <Text style={styles.label}>Ubicación de tu tienda</Text>
+              <Text style={styles.mapInstruction}>
+                Busca tu dirección o toca el mapa para seleccionar la ubicación
+              </Text>
+
+              {/* Buscador de direcciones */}
+              <View style={styles.searchContainer}>
+                <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar dirección..."
+                  placeholderTextColor={COLORS.placeholder}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchLoading && (
+                  <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchLoader} />
+                )}
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setShowSearchResults(false);
+                    }}
+                    style={styles.clearButton}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#999" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Lista de sugerencias */}
+              {showSearchResults && searchResults.length > 0 && (
+                <View style={styles.suggestionsContainer}>
+                  <FlatList
+                    data={searchResults}
+                    keyExtractor={(item) => item.place_id}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.suggestionItem}
+                        onPress={() => handlePlaceSelect(item.place_id, item.description)}
+                      >
+                        <Ionicons name="location-outline" size={20} color={COLORS.primary} />
+                        <View style={styles.suggestionTextContainer}>
+                          <Text style={styles.suggestionMainText}>
+                            {item.structured_formatting.main_text}
+                          </Text>
+                          <Text style={styles.suggestionSecondaryText}>
+                            {item.structured_formatting.secondary_text}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              )}
+
+              <View style={styles.mapContainer}>
+                <MapView
+                  ref={mapRef}
+                  provider={PROVIDER_GOOGLE}
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: selectedLocation.latitude,
+                    longitude: selectedLocation.longitude,
+                    latitudeDelta: 0.0922,
+                    longitudeDelta: 0.0421,
+                  }}
+                  onPress={handleMapPress}
+                >
+                  <Marker
+                    coordinate={selectedLocation}
+                    draggable
+                    onDragEnd={(e) => {
+                      const { latitude, longitude } = e.nativeEvent.coordinate;
+                      setSelectedLocation({ latitude, longitude });
+                      reverseGeocode(latitude, longitude);
+                    }}
+                  />
+                </MapView>
+                {loadingLocation && (
+                  <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color={COLORS.primary} />
+                    <Text style={styles.loadingText}>Obteniendo dirección...</Text>
+                  </View>
+                )}
+              </View>
+
+              {address && (
+                <View style={styles.addressInfo}>
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
+                  <View style={styles.addressTextContainer}>
+                    <Text style={styles.addressLabel}>Dirección seleccionada:</Text>
+                    <Text style={styles.addressText}>{address}</Text>
+                    {city && <Text style={styles.addressDetail}>Ciudad: {city}</Text>}
+                    {province && <Text style={styles.addressDetail}>Provincia: {province}</Text>}
+                  </View>
+                </View>
+              )}
+
+              {/* Nota sobre email para tiendas */}
+              <View style={styles.infoNote}>
+                <Ionicons name="information-circle" size={18} color={COLORS.primary} />
+                <Text style={styles.infoNoteText}>
+                  El email ingresado será utilizado para enviarte información sobre tu suscripción, novedades y promociones.
+                </Text>
+              </View>
+            </>
+          )}
 
           <Text style={styles.label}>Contraseña</Text>
           <View style={styles.inputContainer}>
@@ -511,10 +558,37 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
+          {/* Checkbox de Términos y Condiciones */}
           <TouchableOpacity
-            style={styles.registerButton}
+            style={styles.termsContainer}
+            onPress={() => setAcceptedTerms(!acceptedTerms)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+              {acceptedTerms && <Ionicons name="checkmark" size={16} color="#fff" />}
+            </View>
+            <Text style={styles.termsText}>
+              Acepto los{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => navigation.navigate('Terms')}
+              >
+                Términos y Condiciones
+              </Text>
+              {' '}y la{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => navigation.navigate('PrivacyPolicy')}
+              >
+                Política de Privacidad
+              </Text>
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.registerButton, !acceptedTerms && styles.registerButtonDisabled]}
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || !acceptedTerms}
           >
             {loading ? (
               <ActivityIndicator color={COLORS.white} />
@@ -586,14 +660,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
-  inputIcon: {
-    marginRight: 10,
-  },
   input: {
     flex: 1,
     height: 50,
     fontSize: 16,
     color: COLORS.text,
+    marginLeft: 10,
   },
   roleContainer: {
     flexDirection: 'row',
@@ -633,6 +705,9 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 18,
     fontWeight: '600',
+  },
+  registerButtonDisabled: {
+    opacity: 0.5,
   },
   footer: {
     alignItems: 'center',
@@ -769,6 +844,53 @@ const styles = StyleSheet.create({
   suggestionSecondaryText: {
     fontSize: 13,
     color: COLORS.gray,
+  },
+  // Estilos para términos y condiciones
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.primary,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text,
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: COLORS.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  // Estilos para nota informativa
+  infoNote: {
+    flexDirection: 'row',
+    backgroundColor: '#E3F2FD',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+    gap: 8,
+  },
+  infoNoteText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1565C0',
+    lineHeight: 18,
   },
 });
 

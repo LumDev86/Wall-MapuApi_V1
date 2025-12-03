@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,17 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  TextInput,
+  FlatList,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { shopService, productService } from '../services/api';
-import { Shop, Product } from '../types/product.types';
+import { shopService, productService, categoryService } from '../services/api';
+import { Shop, Product, Category } from '../types/product.types';
 import { COLORS } from '../constants/colors';
+import { useCart } from '../context/CartContext';
+import ImageWithFallback from '../components/ImageWithFallback';
+import { moderateScale as ms, scale as s, getGridItemWidth } from '../utils/responsive';
 
 interface ShopDetailScreenProps {
   navigation: any;
@@ -22,21 +28,36 @@ interface ShopDetailScreenProps {
 
 const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }) => {
   const { shopId } = route.params;
+  const { addItem, getTotalItems } = useCart();
   const [shop, setShop] = useState<Shop | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showAllProducts, setShowAllProducts] = useState(false);
 
   useEffect(() => {
-    fetchShop();
-    fetchProducts();
+    fetchData();
   }, [shopId]);
 
-  const fetchShop = async () => {
+  useEffect(() => {
+    filterProducts();
+  }, [searchQuery, selectedCategory, products]);
+
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await shopService.getById(shopId);
-      setShop(response);
+      const [shopRes, categoriesRes] = await Promise.all([
+        shopService.getById(shopId),
+        categoryService.getAll(),
+      ]);
+      setShop(shopRes);
+      setCategories(categoriesRes.categories || []);
+      await fetchProducts();
     } catch (error) {
       console.error('Error fetching shop:', error);
       Alert.alert('Error', 'No se pudo cargar la tienda');
@@ -46,11 +67,17 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (categoryId?: string, search?: string) => {
     try {
       setProductsLoading(true);
-      const response = await productService.getByShop(shopId, { page: 1, limit: 10 });
+      const response = await productService.getByShop(shopId, {
+        page: 1,
+        limit: 50,
+        categoryId: categoryId || undefined,
+        search: search || undefined,
+      });
       setProducts(response.data);
+      setFilteredProducts(response.data);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -58,21 +85,35 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
     }
   };
 
+  const filterProducts = useCallback(() => {
+    let filtered = [...products];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(query) ||
+          p.description?.toLowerCase().includes(query) ||
+          p.brand?.toLowerCase().includes(query)
+      );
+    }
+
+    if (selectedCategory) {
+      filtered = filtered.filter((p) => p.category?.id === selectedCategory);
+    }
+
+    setFilteredProducts(filtered);
+  }, [products, searchQuery, selectedCategory]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
+
   const handleCall = () => {
     if (shop?.phone) {
       Linking.openURL(`tel:${shop.phone}`);
-    }
-  };
-
-  const handleEmail = () => {
-    if (shop?.email) {
-      Linking.openURL(`mailto:${shop.email}`);
-    }
-  };
-
-  const handleWebsite = () => {
-    if (shop?.website) {
-      Linking.openURL(shop.website);
     }
   };
 
@@ -82,6 +123,25 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
       Linking.openURL(url);
     }
   };
+
+  const handleAddToCart = (product: Product) => {
+    addItem(product, 1);
+    Alert.alert('Agregado', `${product.name} se agregó al carrito`);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory(null);
+  };
+
+  // Get unique categories from products
+  const productCategories = Array.from(
+    new Map(
+      products
+        .filter((p) => p.category)
+        .map((p) => [p.category!.id, p.category!])
+    ).values()
+  );
 
   if (loading) {
     return (
@@ -101,145 +161,293 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView>
-        {/* Banner */}
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+          />
+        }
+        stickyHeaderIndices={[2]}
+      >
+        {/* Header con banner */}
         <View style={styles.bannerContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Cart')}
+            style={styles.cartButton}
+          >
+            <Ionicons name="cart-outline" size={24} color="#fff" />
+            {getTotalItems() > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{getTotalItems()}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
           {shop.banner ? (
             <Image source={{ uri: shop.banner }} style={styles.banner} />
           ) : (
-            <View style={[styles.banner, { backgroundColor: COLORS.primary }]} />
+            <View style={[styles.banner, { backgroundColor: COLORS.primary }]}>
+              <Ionicons name="storefront" size={60} color="rgba(255,255,255,0.3)" />
+            </View>
           )}
           <View style={styles.logoContainer}>
-            <Image
-              source={{ uri: shop.logo || 'https://via.placeholder.com/100' }}
+            <ImageWithFallback
+              uri={shop.logo}
               style={styles.logo}
             />
           </View>
         </View>
 
-        {/* Información básica */}
+        {/* Información de la tienda */}
         <View style={styles.infoContainer}>
-          <Text style={styles.shopName}>{shop.name}</Text>
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeText}>
-              {shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}
-            </Text>
-          </View>
-          {shop.isOpenNow && (
-            <View style={styles.openBadge}>
-              <Ionicons name="time" size={16} color="#4CAF50" />
-              <Text style={styles.openText}>Abierto ahora</Text>
-            </View>
-          )}
-          <Text style={styles.description}>{shop.description}</Text>
-        </View>
-
-        {/* Información de contacto */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contacto</Text>
-
-          <TouchableOpacity style={styles.contactRow} onPress={handleDirections}>
-            <Ionicons name="location" size={20} color={COLORS.primary} />
-            <Text style={styles.contactText}>{shop.address}, {shop.city}, {shop.province}</Text>
-          </TouchableOpacity>
-
-          {shop.phone && (
-            <TouchableOpacity style={styles.contactRow} onPress={handleCall}>
-              <Ionicons name="call" size={20} color={COLORS.primary} />
-              <Text style={styles.contactText}>{shop.phone}</Text>
-            </TouchableOpacity>
-          )}
-
-          {shop.email && (
-            <TouchableOpacity style={styles.contactRow} onPress={handleEmail}>
-              <Ionicons name="mail" size={20} color={COLORS.primary} />
-              <Text style={styles.contactText}>{shop.email}</Text>
-            </TouchableOpacity>
-          )}
-
-          {shop.website && (
-            <TouchableOpacity style={styles.contactRow} onPress={handleWebsite}>
-              <Ionicons name="globe" size={20} color={COLORS.primary} />
-              <Text style={styles.contactText}>{shop.website}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Horarios */}
-        {shop.schedule && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Horarios</Text>
-            {Object.entries(shop.schedule).map(([day, hours]: [string, any]) => (
-              <View key={day} style={styles.scheduleRow}>
-                <Text style={styles.scheduleDay}>{getDayName(day)}</Text>
-                <Text style={styles.scheduleHours}>
-                  {hours.open} - {hours.close}
-                </Text>
+          <View style={styles.infoHeader}>
+            <View style={styles.infoLeft}>
+              <Text style={styles.shopName}>{shop.name}</Text>
+              <View style={styles.badgesRow}>
+                <View style={styles.typeBadge}>
+                  <Text style={styles.typeText}>
+                    {shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}
+                  </Text>
+                </View>
+                {shop.isOpenNow && (
+                  <View style={styles.openBadge}>
+                    <View style={styles.openDot} />
+                    <Text style={styles.openText}>Abierto</Text>
+                  </View>
+                )}
               </View>
-            ))}
+            </View>
           </View>
-        )}
+          {shop.description && (
+            <Text style={styles.description}>{shop.description}</Text>
+          )}
+
+          {/* Botones de acción rápida */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity style={styles.quickActionButton} onPress={handleCall}>
+              <Ionicons name="call" size={20} color={COLORS.primary} />
+              <Text style={styles.quickActionText}>Llamar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionButton} onPress={handleDirections}>
+              <Ionicons name="navigate" size={20} color={COLORS.primary} />
+              <Text style={styles.quickActionText}>Cómo llegar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={() => {
+                if (shop.phone) Linking.openURL(`https://wa.me/${shop.phone.replace(/\D/g, '')}`);
+              }}
+            >
+              <Ionicons name="logo-whatsapp" size={20} color={COLORS.primary} />
+              <Text style={styles.quickActionText}>WhatsApp</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Barra de búsqueda sticky */}
+        <View style={styles.searchSection}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={20} color="#999" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar productos en esta tienda..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Categorías */}
+          {productCategories.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesContent}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.categoryChip,
+                  !selectedCategory && styles.categoryChipActive,
+                ]}
+                onPress={() => setSelectedCategory(null)}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    !selectedCategory && styles.categoryChipTextActive,
+                  ]}
+                >
+                  Todos
+                </Text>
+              </TouchableOpacity>
+              {productCategories.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategory === category.id && styles.categoryChipActive,
+                  ]}
+                  onPress={() =>
+                    setSelectedCategory(
+                      selectedCategory === category.id ? null : category.id
+                    )
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      selectedCategory === category.id && styles.categoryChipTextActive,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
 
         {/* Productos */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Productos</Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ProductList', {
-                shopId: shop.id,
-                title: `Productos de ${shop.name}`,
-              })}
-            >
-              <Text style={styles.seeAllText}>Ver todos</Text>
-            </TouchableOpacity>
+        <View style={styles.productsSection}>
+          <View style={styles.productsSectionHeader}>
+            <Text style={styles.productsTitle}>
+              {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''}
+              {selectedCategory || searchQuery ? ' encontrados' : ''}
+            </Text>
+            {(selectedCategory || searchQuery) && (
+              <TouchableOpacity onPress={clearFilters}>
+                <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {productsLoading ? (
-            <ActivityIndicator size="small" color={COLORS.primary} />
-          ) : products.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {products.map((product) => (
+            <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
+          ) : filteredProducts.length > 0 ? (
+            <View style={styles.productsGrid}>
+              {filteredProducts.map((product) => (
                 <TouchableOpacity
                   key={product.id}
                   style={styles.productCard}
                   onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
                 >
-                  <Image
-                    source={{ uri: product.images[0] || 'https://via.placeholder.com/150' }}
+                  <ImageWithFallback
+                    uri={product.images?.[0]}
                     style={styles.productImage}
                   />
-                  <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-                  <Text style={styles.productPrice}>
-                    ${parseFloat(product.priceRetail).toLocaleString('es-AR')}
-                  </Text>
+                  {product.stock <= 0 && (
+                    <View style={styles.outOfStockBadge}>
+                      <Text style={styles.outOfStockText}>Agotado</Text>
+                    </View>
+                  )}
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={2}>
+                      {product.name}
+                    </Text>
+                    {product.brand && (
+                      <Text style={styles.productBrand}>{product.brand}</Text>
+                    )}
+                    <Text style={styles.productPrice}>
+                      ${parseFloat(product.priceRetail).toLocaleString('es-AR')}
+                    </Text>
+                    {product.stock > 0 ? (
+                      <TouchableOpacity
+                        style={styles.addButton}
+                        onPress={() => handleAddToCart(product)}
+                      >
+                        <Ionicons name="add" size={20} color="#fff" />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={[styles.addButton, styles.addButtonDisabled]}>
+                        <Ionicons name="close" size={20} color="#999" />
+                      </View>
+                    )}
+                  </View>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           ) : (
-            <Text style={styles.noProducts}>No hay productos disponibles</Text>
+            <View style={styles.emptyProducts}>
+              <Ionicons name="search-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyProductsTitle}>No se encontraron productos</Text>
+              <Text style={styles.emptyProductsSubtitle}>
+                {searchQuery
+                  ? 'Intenta con otros términos de búsqueda'
+                  : 'Esta tienda aún no tiene productos'}
+              </Text>
+              {(searchQuery || selectedCategory) && (
+                <TouchableOpacity style={styles.clearFiltersButton} onPress={clearFilters}>
+                  <Text style={styles.clearFiltersButtonText}>Limpiar filtros</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
+
+        {/* Información adicional */}
+        <View style={styles.additionalInfo}>
+          {/* Horarios */}
+          {shop.schedule && Object.keys(shop.schedule).length > 0 && (
+            <View style={styles.infoCard}>
+              <View style={styles.infoCardHeader}>
+                <Ionicons name="time-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.infoCardTitle}>Horarios</Text>
+              </View>
+              {Object.entries(shop.schedule).map(([day, hours]: [string, any]) => (
+                <View key={day} style={styles.scheduleRow}>
+                  <Text style={styles.scheduleDay}>{getDayName(day)}</Text>
+                  <Text style={styles.scheduleHours}>
+                    {hours.closed ? 'Cerrado' : `${hours.open} - ${hours.close}`}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Contacto */}
+          <View style={styles.infoCard}>
+            <View style={styles.infoCardHeader}>
+              <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.infoCardTitle}>Información de contacto</Text>
+            </View>
+            <TouchableOpacity style={styles.contactRow} onPress={handleDirections}>
+              <Ionicons name="location-outline" size={18} color="#666" />
+              <Text style={styles.contactText}>
+                {shop.address}, {shop.city}, {shop.province}
+              </Text>
+            </TouchableOpacity>
+            {shop.phone && (
+              <TouchableOpacity style={styles.contactRow} onPress={handleCall}>
+                <Ionicons name="call-outline" size={18} color="#666" />
+                <Text style={styles.contactText}>{shop.phone}</Text>
+              </TouchableOpacity>
+            )}
+            {shop.email && (
+              <TouchableOpacity
+                style={styles.contactRow}
+                onPress={() => Linking.openURL(`mailto:${shop.email}`)}
+              >
+                <Ionicons name="mail-outline" size={18} color="#666" />
+                <Text style={styles.contactText}>{shop.email}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <View style={{ height: 100 }} />
       </ScrollView>
-
-      {/* Footer con botones */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-          <Ionicons name="call" size={20} color={COLORS.white} />
-          <Text style={styles.callButtonText}>Llamar</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.directionsButton} onPress={handleDirections}>
-          <Ionicons name="navigate" size={20} color={COLORS.white} />
-          <Text style={styles.directionsButtonText}>Cómo llegar</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -260,61 +468,89 @@ const getDayName = (day: string): string => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F5F5F5',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-  },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 10,
-  },
-  backButton: {
-    padding: 8,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
   },
   bannerContainer: {
     position: 'relative',
+    height: 200,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 20,
+  },
+  cartButton: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 20,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   banner: {
     width: '100%',
-    height: 200,
-    backgroundColor: COLORS.lightGray,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logoContainer: {
     position: 'absolute',
-    bottom: -50,
+    bottom: -40,
     left: 20,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#fff',
     borderRadius: 50,
-    padding: 5,
+    padding: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   logo: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   infoContainer: {
-    paddingTop: 60,
+    backgroundColor: '#fff',
+    paddingTop: 50,
     paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  infoLeft: {
+    flex: 1,
   },
   shopName: {
     fontSize: 24,
@@ -322,149 +558,278 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: 8,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   typeBadge: {
-    alignSelf: 'flex-start',
     backgroundColor: COLORS.primary,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    marginBottom: 8,
   },
   typeText: {
     fontSize: 12,
-    color: COLORS.white,
+    color: '#fff',
     fontWeight: '600',
   },
   openBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 12,
+    gap: 6,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  openDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
   },
   openText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4CAF50',
     fontWeight: '600',
   },
   description: {
     fontSize: 14,
-    color: COLORS.gray,
+    color: '#666',
     lineHeight: 20,
-    marginTop: 8,
+    marginTop: 12,
   },
-  section: {
+  quickActions: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 12,
+  },
+  quickActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F9F6',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  quickActionText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  searchSection: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  categoriesContent: {
+    paddingTop: 12,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F0F0F0',
+    marginRight: 8,
+  },
+  categoryChipActive: {
+    backgroundColor: COLORS.primary,
+  },
+  categoryChipText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  categoryChipTextActive: {
+    color: '#fff',
+  },
+  productsSection: {
     padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
-  sectionHeader: {
+  productsSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  productsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
     color: COLORS.text,
   },
-  seeAllText: {
+  clearFiltersText: {
     fontSize: 14,
     color: COLORS.primary,
-    fontWeight: '600',
-  },
-  contactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    gap: 12,
-  },
-  contactText: {
-    fontSize: 14,
-    color: COLORS.text,
-    flex: 1,
-  },
-  scheduleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-  },
-  scheduleDay: {
-    fontSize: 14,
-    color: COLORS.text,
     fontWeight: '500',
   },
-  scheduleHours: {
-    fontSize: 14,
-    color: COLORS.gray,
+  productsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
   },
   productCard: {
-    width: 150,
-    marginRight: 12,
-    backgroundColor: '#F8F8F8',
+    width: '48%',
+    backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   productImage: {
     width: '100%',
     height: 120,
+    backgroundColor: '#F5F5F5',
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  outOfStockText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  productInfo: {
+    padding: 12,
+    position: 'relative',
   },
   productName: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: COLORS.text,
-    padding: 8,
+    marginBottom: 4,
+    paddingRight: 36,
+  },
+  productBrand: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 4,
   },
   productPrice: {
     fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingBottom: 8,
   },
-  noProducts: {
-    fontSize: 14,
-    color: COLORS.gray,
-    textAlign: 'center',
-    paddingVertical: 20,
-  },
-  footer: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    gap: 12,
-  },
-  callButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
+  addButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
     backgroundColor: COLORS.primary,
-    gap: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  callButtonText: {
+  addButtonDisabled: {
+    backgroundColor: '#E0E0E0',
+  },
+  emptyProducts: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyProductsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.white,
+    color: COLORS.text,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  directionsButton: {
-    flex: 1,
+  emptyProductsSubtitle: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+  },
+  clearFiltersButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+  },
+  clearFiltersButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  additionalInfo: {
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  infoCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.secondary,
-    gap: 6,
+    gap: 8,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
-  directionsButtonText: {
+  infoCardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.white,
+    color: COLORS.text,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  scheduleDay: {
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  scheduleHours: {
+    fontSize: 14,
+    color: '#666',
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  contactText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
   },
 });
 

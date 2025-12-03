@@ -1,0 +1,542 @@
+================================================================================
+                    WALL-MAPU - ESPECIFICACION API BACKEND
+                         Version 2.0 - Diciembre 2024
+================================================================================
+
+                              TABLA DE CONTENIDOS
+--------------------------------------------------------------------------------
+1. Introduccion y Contexto
+2. Endpoints Requeridos
+   2.1 Autenticacion (Existentes)
+   2.2 Perfil de Usuario (NUEVO)
+   2.3 Tiendas (Actualizacion)
+3. Modelos de Datos
+   3.1 Usuario (User)
+   3.2 Mascota (Pet)
+   3.3 Tienda (Shop)
+4. Esquema de Base de Datos
+5. Validaciones Requeridas
+6. Codigos de Distribuidor (Futuro)
+7. Ejemplos de Request/Response
+8. Consideraciones de Seguridad
+
+================================================================================
+                         1. INTRODUCCION Y CONTEXTO
+================================================================================
+
+Este documento especifica los cambios necesarios en el backend para soportar
+las nuevas funcionalidades del frontend de Wall-Mapu.
+
+CAMBIOS PRINCIPALES:
+- Nuevo endpoint para actualizar perfil de cliente (datos opcionales)
+- Nuevos campos en registro de usuario
+- Nuevos campos en creacion/actualizacion de tiendas
+- Sistema de codigos de distribuidor (prioridad baja)
+
+FLUJO DE REGISTRO DE CLIENTES:
+1. Usuario se registra con datos basicos (email, password, name, phone, role)
+2. Backend crea usuario y devuelve token
+3. Frontend muestra pantalla "Completar Perfil" (opcional)
+4. Usuario puede agregar datos adicionales o saltar
+5. Si completa, frontend llama a PATCH /api/users/profile
+
+================================================================================
+                         2. ENDPOINTS REQUERIDOS
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1 AUTENTICACION (YA EXISTENTES - ACTUALIZACION DE CAMPOS)
+--------------------------------------------------------------------------------
+
+POST /api/auth/register
+-----------------------
+El registro ahora puede recibir campos adicionales para clientes.
+
+CAMPOS BASE (sin cambios):
+{
+  "email": "string",      // Requerido - Email unico
+  "password": "string",   // Requerido - Min 8 caracteres
+  "name": "string",       // Requerido
+  "phone": "string",      // Requerido
+  "role": "string"        // Requerido - 'client' | 'retailer' | 'wholesaler'
+}
+
+CAMPOS ADICIONALES PARA TIENDAS (role != 'client'):
+{
+  "province": "string",   // Opcional
+  "city": "string",       // Opcional
+  "address": "string",    // Opcional
+  "latitude": "number",   // Opcional
+  "longitude": "number"   // Opcional
+}
+
+NOTA: Los datos opcionales de clientes (birthDate, gender, etc.) ya NO se
+envian en el registro. Se envian despues via PATCH /api/users/profile.
+
+--------------------------------------------------------------------------------
+2.2 PERFIL DE USUARIO (NUEVO ENDPOINT)
+--------------------------------------------------------------------------------
+
+*** ENDPOINT CRITICO - IMPLEMENTAR PRIMERO ***
+
+PATCH /api/users/profile
+------------------------
+Actualiza los datos opcionales del perfil del usuario autenticado.
+
+Headers:
+  Authorization: Bearer <token>
+
+Request Body:
+{
+  "birthDate": "string",       // ISO 8601 - Ej: "1990-05-15T00:00:00.000Z"
+  "gender": "string",          // 'female' | 'male' | 'other'
+  "barrio": "string",          // Barrio/zona del usuario
+  "hasDogs": "boolean",        // Tiene perros?
+  "hasCats": "boolean",        // Tiene gatos?
+  "hasOtherPets": "boolean",   // Tiene otras mascotas?
+  "pets": [                    // Array de mascotas (ver estructura abajo)
+    {
+      "id": "string",          // ID generado en frontend
+      "type": "string",        // 'dog' | 'cat' | 'other'
+      "name": "string",        // Nombre (requerido si se envia mascota)
+      "breed": "string",       // Raza (opcional)
+      "age": "string"          // Ej: "2 anos", "6 meses" (opcional)
+    }
+  ]
+}
+
+Response (200 OK):
+{
+  "message": "Perfil actualizado correctamente",
+  "user": {
+    // Usuario actualizado con todos sus campos
+  }
+}
+
+Response (400 Bad Request):
+{
+  "message": "Error de validacion",
+  "errors": ["birthDate debe ser una fecha valida"]
+}
+
+Response (401 Unauthorized):
+{
+  "message": "Token invalido o expirado"
+}
+
+NOTAS:
+- Todos los campos son opcionales
+- Solo actualiza los campos enviados (PATCH, no PUT)
+- Las mascotas se reemplazan completamente (no merge)
+- Validar que birthDate sea menor a fecha actual
+- Validar que gender sea uno de los valores permitidos
+
+
+GET /api/users/profile
+----------------------
+Obtiene el perfil completo del usuario autenticado.
+
+Headers:
+  Authorization: Bearer <token>
+
+Response (200 OK):
+{
+  "id": "uuid",
+  "email": "string",
+  "name": "string",
+  "phone": "string",
+  "role": "string",
+  "province": "string | null",
+  "city": "string | null",
+  "address": "string | null",
+  "latitude": "number | null",
+  "longitude": "number | null",
+  "birthDate": "string | null",      // NUEVO
+  "gender": "string | null",          // NUEVO
+  "barrio": "string | null",          // NUEVO
+  "hasDogs": "boolean",               // NUEVO
+  "hasCats": "boolean",               // NUEVO
+  "hasOtherPets": "boolean",          // NUEVO
+  "pets": [],                         // NUEVO - Array de mascotas
+  "isEmailVerified": "boolean",
+  "isActive": "boolean",
+  "createdAt": "string",
+  "updatedAt": "string"
+}
+
+
+--------------------------------------------------------------------------------
+2.3 TIENDAS (ACTUALIZACION DE CAMPOS)
+--------------------------------------------------------------------------------
+
+POST /api/shops
+---------------
+Crear tienda con campos adicionales.
+
+CAMPOS NUEVOS (agregar a los existentes):
+{
+  // ... campos existentes ...
+
+  // Categoria y contacto
+  "category": "string",         // 'petshop' | 'forrajeria' | 'veterinaria' | 'distribuidor'
+  "whatsapp": "string",         // Numero WhatsApp
+  "notificationEmail": "string",// Email para notificaciones
+
+  // Datos fiscales (todos opcionales)
+  "razonSocial": "string",
+  "direccionFiscal": "string",
+  "cuit": "string",             // 11 digitos sin guiones
+  "ivaPosition": "string",      // 'responsable_inscripto' | 'monotributo' | 'exento' | 'consumidor_final'
+  "iibb": "string",             // Numero Ingresos Brutos
+  "convenioMultilateral": "boolean",
+
+  // Codigo distribuidor (solo si category='distribuidor')
+  "distributorCode": "string"   // Formato: CPXX00 (opcional por ahora)
+}
+
+
+PATCH /api/shops/:id
+--------------------
+Los mismos campos nuevos deben poder actualizarse.
+
+
+================================================================================
+                         3. MODELOS DE DATOS
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 MODELO USER (Actualizado)
+--------------------------------------------------------------------------------
+
+{
+  "id": "UUID",
+  "email": "string",
+  "password": "string (hash)",
+  "name": "string",
+  "phone": "string",
+  "role": "'client' | 'retailer' | 'wholesaler' | 'admin'",
+
+  // Ubicacion (principalmente para tiendas)
+  "province": "string | null",
+  "city": "string | null",
+  "address": "string | null",
+  "latitude": "number | null",
+  "longitude": "number | null",
+
+  // NUEVOS CAMPOS - Solo para clientes
+  "birthDate": "DATE | null",
+  "gender": "'female' | 'male' | 'other' | null",
+  "barrio": "string | null",
+  "hasDogs": "boolean (default false)",
+  "hasCats": "boolean (default false)",
+  "hasOtherPets": "boolean (default false)",
+
+  // Campos existentes
+  "isEmailVerified": "boolean",
+  "passwordResetToken": "string | null",
+  "passwordResetExpires": "datetime | null",
+  "isActive": "boolean",
+  "createdAt": "datetime",
+  "updatedAt": "datetime"
+}
+
+--------------------------------------------------------------------------------
+3.2 MODELO PET (Nuevo)
+--------------------------------------------------------------------------------
+
+{
+  "id": "UUID",
+  "userId": "UUID (FK -> users.id)",
+  "type": "'dog' | 'cat' | 'other'",
+  "name": "string",
+  "breed": "string | null",
+  "age": "string | null",
+  "createdAt": "datetime",
+  "updatedAt": "datetime"
+}
+
+Relacion: User 1:N Pet
+
+--------------------------------------------------------------------------------
+3.3 MODELO SHOP (Actualizado)
+--------------------------------------------------------------------------------
+
+Agregar estos campos al modelo existente:
+
+{
+  // ... campos existentes ...
+
+  // NUEVOS CAMPOS
+  "category": "'petshop' | 'forrajeria' | 'veterinaria' | 'distribuidor' | null",
+  "whatsapp": "string | null",
+  "notificationEmail": "string | null",
+  "distributorCode": "string | null",
+
+  // Datos fiscales
+  "razonSocial": "string | null",
+  "direccionFiscal": "string | null",
+  "cuit": "string | null",         // 11 digitos
+  "ivaPosition": "'responsable_inscripto' | 'monotributo' | 'exento' | 'consumidor_final' | null",
+  "iibb": "string | null",
+  "convenioMultilateral": "boolean (default false)"
+}
+
+
+================================================================================
+                    4. ESQUEMA DE BASE DE DATOS
+================================================================================
+
+-- Modificar tabla USERS
+ALTER TABLE users ADD COLUMN birth_date DATE NULL;
+ALTER TABLE users ADD COLUMN gender ENUM('female', 'male', 'other') NULL;
+ALTER TABLE users ADD COLUMN barrio VARCHAR(100) NULL;
+ALTER TABLE users ADD COLUMN has_dogs BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN has_cats BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN has_other_pets BOOLEAN DEFAULT FALSE;
+
+-- Crear tabla USER_PETS
+CREATE TABLE user_pets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type ENUM('dog', 'cat', 'other') NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  breed VARCHAR(100) NULL,
+  age VARCHAR(50) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_user_pets_user_id ON user_pets(user_id);
+
+-- Modificar tabla SHOPS
+ALTER TABLE shops ADD COLUMN category ENUM('petshop', 'forrajeria', 'veterinaria', 'distribuidor') NULL;
+ALTER TABLE shops ADD COLUMN whatsapp VARCHAR(20) NULL;
+ALTER TABLE shops ADD COLUMN notification_email VARCHAR(100) NULL;
+ALTER TABLE shops ADD COLUMN distributor_code VARCHAR(10) NULL;
+ALTER TABLE shops ADD COLUMN razon_social VARCHAR(200) NULL;
+ALTER TABLE shops ADD COLUMN direccion_fiscal VARCHAR(300) NULL;
+ALTER TABLE shops ADD COLUMN cuit VARCHAR(11) NULL;
+ALTER TABLE shops ADD COLUMN iva_position ENUM('responsable_inscripto', 'monotributo', 'exento', 'consumidor_final') NULL;
+ALTER TABLE shops ADD COLUMN iibb VARCHAR(50) NULL;
+ALTER TABLE shops ADD COLUMN convenio_multilateral BOOLEAN DEFAULT FALSE;
+
+-- (FUTURO) Tabla para codigos de distribuidor
+-- CREATE TABLE distributor_codes (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   code VARCHAR(10) UNIQUE NOT NULL,
+--   is_used BOOLEAN DEFAULT FALSE,
+--   used_by UUID NULL REFERENCES shops(id),
+--   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   expires_at TIMESTAMP NULL
+-- );
+
+
+================================================================================
+                         5. VALIDACIONES REQUERIDAS
+================================================================================
+
+USUARIOS:
+- birthDate: Fecha valida, menor a fecha actual, mayor a 1920
+- gender: Solo valores permitidos ('female', 'male', 'other')
+- barrio: Max 100 caracteres
+
+MASCOTAS:
+- type: Solo valores permitidos ('dog', 'cat', 'other')
+- name: Requerido, max 100 caracteres
+- breed: Max 100 caracteres
+- age: Max 50 caracteres
+
+TIENDAS:
+- category: Solo valores permitidos
+- whatsapp: Formato telefono valido
+- notificationEmail: Formato email valido
+- cuit: Exactamente 11 digitos numericos
+- ivaPosition: Solo valores permitidos
+- distributorCode: Formato CPXX00 (2 letras + 2 numeros) - solo validar formato por ahora
+
+
+================================================================================
+                    6. CODIGOS DE DISTRIBUIDOR (PRIORIDAD BAJA)
+================================================================================
+
+*** NO IMPLEMENTAR AUN - SOLO DOCUMENTACION ***
+
+El frontend actualmente permite crear tiendas de tipo "distribuidor" sin
+requerir codigo. Cuando se necesite controlar el acceso:
+
+1. Crear tabla distributor_codes (ver seccion 4)
+2. Implementar endpoint de validacion:
+
+   POST /api/distributor-codes/validate
+   Body: { "code": "CPAB01" }
+   Response: { "valid": true/false, "message": "..." }
+
+3. Avisar al equipo frontend para hacer el campo obligatorio
+4. El frontend ya tiene validacion de formato implementada
+
+
+================================================================================
+                    7. EJEMPLOS DE REQUEST/RESPONSE
+================================================================================
+
+--------------------------------------------------------------------------------
+EJEMPLO: Actualizar perfil de cliente
+--------------------------------------------------------------------------------
+
+Request:
+POST /api/users/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+
+{
+  "birthDate": "1990-05-15T00:00:00.000Z",
+  "gender": "male",
+  "barrio": "Palermo",
+  "hasDogs": true,
+  "hasCats": false,
+  "hasOtherPets": false,
+  "pets": [
+    {
+      "id": "1701234567890",
+      "type": "dog",
+      "name": "Rocky",
+      "breed": "Labrador",
+      "age": "3 anos"
+    },
+    {
+      "id": "1701234567891",
+      "type": "dog",
+      "name": "Luna",
+      "breed": "Golden Retriever",
+      "age": "1 ano"
+    }
+  ]
+}
+
+Response (200):
+{
+  "message": "Perfil actualizado correctamente",
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "cliente@ejemplo.com",
+    "name": "Juan Perez",
+    "phone": "+5491112345678",
+    "role": "client",
+    "birthDate": "1990-05-15T00:00:00.000Z",
+    "gender": "male",
+    "barrio": "Palermo",
+    "hasDogs": true,
+    "hasCats": false,
+    "hasOtherPets": false,
+    "pets": [
+      {
+        "id": "1701234567890",
+        "type": "dog",
+        "name": "Rocky",
+        "breed": "Labrador",
+        "age": "3 anos"
+      },
+      {
+        "id": "1701234567891",
+        "type": "dog",
+        "name": "Luna",
+        "breed": "Golden Retriever",
+        "age": "1 ano"
+      }
+    ],
+    "isEmailVerified": false,
+    "isActive": true,
+    "createdAt": "2024-12-01T10:00:00.000Z",
+    "updatedAt": "2024-12-01T10:05:00.000Z"
+  }
+}
+
+--------------------------------------------------------------------------------
+EJEMPLO: Crear tienda con datos fiscales
+--------------------------------------------------------------------------------
+
+Request:
+POST /api/shops
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+Content-Type: multipart/form-data
+
+{
+  "name": "Mascoteria El Amigo Fiel",
+  "description": "Venta de alimentos y accesorios",
+  "address": "Av. Corrientes 1234",
+  "province": "Buenos Aires",
+  "city": "CABA",
+  "type": "retailer",
+  "category": "petshop",
+  "phone": "+5491112345678",
+  "whatsapp": "+5491187654321",
+  "email": "tienda@ejemplo.com",
+  "notificationEmail": "notificaciones@ejemplo.com",
+  "latitude": -34.6037,
+  "longitude": -58.3816,
+  "razonSocial": "Juan Perez",
+  "direccionFiscal": "Av. Corrientes 1234, CABA",
+  "cuit": "20123456789",
+  "ivaPosition": "monotributo",
+  "iibb": "12345678",
+  "convenioMultilateral": false,
+  "schedule": {
+    "monday": { "open": "09:00", "close": "18:00" },
+    "tuesday": { "open": "09:00", "close": "18:00" },
+    "wednesday": { "open": "09:00", "close": "18:00" },
+    "thursday": { "open": "09:00", "close": "18:00" },
+    "friday": { "open": "09:00", "close": "18:00" },
+    "saturday": { "open": "09:00", "close": "13:00" }
+  }
+}
+
+
+================================================================================
+                    8. CONSIDERACIONES DE SEGURIDAD
+================================================================================
+
+1. DATOS FISCALES:
+   - El CUIT es dato sensible
+   - Considerar no mostrar completo en respuestas publicas (ej: XX-XXXXXX89)
+   - Los datos fiscales solo deben ser visibles para el dueno de la tienda
+
+2. AUTENTICACION:
+   - Todos los endpoints de perfil requieren token valido
+   - Validar que el usuario solo pueda modificar SU perfil
+
+3. VALIDACION:
+   - Sanitizar todos los inputs
+   - Validar formatos de email, telefono, CUIT
+   - Limitar longitud de strings para prevenir overflow
+
+4. RETROCOMPATIBILIDAD:
+   - Todos los campos nuevos son OPCIONALES
+   - Usuarios/tiendas existentes no se veran afectados
+   - El frontend maneja gracefully si los campos no existen
+
+
+================================================================================
+                            PRIORIDADES DE IMPLEMENTACION
+================================================================================
+
+ALTA PRIORIDAD (Implementar primero):
+1. PATCH /api/users/profile - Actualizar perfil de cliente
+2. GET /api/users/profile - Obtener perfil completo
+3. Agregar campos a tabla users (birthDate, gender, barrio, hasDogs, etc.)
+4. Crear tabla user_pets
+
+MEDIA PRIORIDAD:
+5. Agregar campos a tabla shops (category, whatsapp, datos fiscales)
+6. Actualizar POST /api/shops para aceptar nuevos campos
+7. Actualizar PATCH /api/shops/:id
+
+BAJA PRIORIDAD (Futuro):
+8. Sistema de codigos de distribuidor
+
+
+================================================================================
+                              FIN DEL DOCUMENTO
+================================================================================
+
+Contacto equipo frontend: [Agregar email/slack]
+Ultima actualizacion: Diciembre 2024
+

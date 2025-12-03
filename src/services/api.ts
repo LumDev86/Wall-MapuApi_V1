@@ -405,13 +405,29 @@ export const shopService = {
     formData.append('city', data.city);
     formData.append('type', data.type);
 
-    // Campos opcionales
+    // Campos opcionales básicos
     if (data.description) formData.append('description', data.description);
+    if (data.category) formData.append('category', data.category);
     if (data.phone) formData.append('phone', data.phone);
+    if (data.whatsapp) formData.append('whatsapp', data.whatsapp);
     if (data.email) formData.append('email', data.email);
+    if (data.notificationEmail) formData.append('notificationEmail', data.notificationEmail);
     if (data.website) formData.append('website', data.website);
     if (data.latitude) formData.append('latitude', data.latitude.toString());
     if (data.longitude) formData.append('longitude', data.longitude.toString());
+
+    // Código de distribuidor
+    if (data.distributorCode) formData.append('distributorCode', data.distributorCode);
+
+    // Datos fiscales
+    if (data.razonSocial) formData.append('razonSocial', data.razonSocial);
+    if (data.direccionFiscal) formData.append('direccionFiscal', data.direccionFiscal);
+    if (data.cuit) formData.append('cuit', data.cuit);
+    if (data.ivaPosition) formData.append('ivaPosition', data.ivaPosition);
+    if (data.iibb) formData.append('iibb', data.iibb);
+    if (data.convenioMultilateral !== undefined) {
+      formData.append('convenioMultilateral', data.convenioMultilateral.toString());
+    }
 
     // Horarios (JSON string)
     if (data.schedule) {
@@ -559,6 +575,44 @@ export const subscriptionService = {
    */
   getStats: async (): Promise<SubscriptionStats> => {
     const response = await api.get<SubscriptionStats>('/subscriptions/stats');
+    return response.data;
+  },
+};
+
+// =============================================================================
+// USER SERVICES
+// =============================================================================
+
+export const userService = {
+  /**
+   * Actualizar perfil del usuario autenticado
+   * PATCH /api/users/profile
+   */
+  updateProfile: async (data: {
+    birthDate?: string;
+    gender?: 'female' | 'male' | 'other';
+    barrio?: string;
+    hasDogs?: boolean;
+    hasCats?: boolean;
+    hasOtherPets?: boolean;
+    pets?: Array<{
+      id: string;
+      type: 'dog' | 'cat' | 'other';
+      name: string;
+      breed?: string;
+      age?: string;
+    }>;
+  }): Promise<{ message: string; user: any }> => {
+    const response = await api.patch('/users/profile', data);
+    return response.data;
+  },
+
+  /**
+   * Obtener perfil del usuario autenticado
+   * GET /api/users/profile
+   */
+  getProfile: async (): Promise<any> => {
+    const response = await api.get('/users/profile');
     return response.data;
   },
 };

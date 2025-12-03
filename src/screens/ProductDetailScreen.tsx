@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Dimensions,
   ToastAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,8 +15,8 @@ import { productService } from '../services/api';
 import { Product } from '../types/product.types';
 import { COLORS } from '../constants/colors';
 import { useCart } from '../context/CartContext';
-
-const { width } = Dimensions.get('window');
+import ImageWithFallback from '../components/ImageWithFallback';
+import { screenWidth as width, moderateScale as ms, scale as s } from '../utils/responsive';
 
 interface ProductDetailScreenProps {
   navigation: any;
@@ -92,8 +91,8 @@ const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({ navigation, r
       <ScrollView>
         {/* Imágenes */}
         <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: product.images[selectedImage] || 'https://via.placeholder.com/400' }}
+          <ImageWithFallback
+            uri={product.images[selectedImage]}
             style={styles.mainImage}
             resizeMode="contain"
           />
@@ -174,8 +173,8 @@ const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({ navigation, r
               onPress={() => navigation.navigate('ShopDetail', { shopId: product.shop.id })}
             >
               <View style={styles.shopInfo}>
-                <Image
-                  source={{ uri: product.shop.logo || 'https://via.placeholder.com/50' }}
+                <ImageWithFallback
+                  uri={product.shop.logo}
                   style={styles.shopLogo}
                 />
                 <View style={styles.shopDetails}>

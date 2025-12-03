@@ -41,9 +41,12 @@ export interface Shop {
   latitude: string;
   longitude: string;
   type: 'retailer' | 'wholesaler';
+  category?: 'petshop' | 'forrajeria' | 'veterinaria' | 'distribuidor';
   status: string;
   phone: string;
+  whatsapp?: string;
   email: string;
+  notificationEmail?: string;
   website: string;
   schedule: Schedule;
   logo: string;
@@ -53,6 +56,17 @@ export interface Shop {
   updatedAt: string;
   owner?: Owner;
   isOpenNow?: boolean;
+  // Datos fiscales
+  razonSocial?: string;
+  direccionFiscal?: string;
+  cuit?: string;
+  ivaPosition?: string;
+  iibb?: string;
+  convenioMultilateral?: boolean;
+  // Optional fields that may come from API
+  distance?: number;
+  productCount?: number;
+  categories?: Category[];
 }
 
 export interface Schedule {
@@ -139,6 +153,9 @@ export interface UpdateProductRequest {
   images?: ImageFile[];
 }
 
+export type ShopCategory = 'petshop' | 'forrajeria' | 'veterinaria' | 'distribuidor';
+export type IVAPosition = 'responsable_inscripto' | 'monotributo' | 'exento' | 'consumidor_final';
+
 export interface CreateShopRequest {
   name: string;
   description?: string;
@@ -146,14 +163,26 @@ export interface CreateShopRequest {
   province: string;
   city: string;
   type: 'retailer' | 'wholesaler';
+  category?: ShopCategory;
   phone?: string;
+  whatsapp?: string;
   email?: string;
+  notificationEmail?: string;
   website?: string;
   latitude?: number;
   longitude?: number;
   schedule?: Schedule;
   logo?: ImageFile;
   banner?: ImageFile;
+  // Datos fiscales
+  razonSocial?: string;
+  direccionFiscal?: string;
+  cuit?: string;
+  ivaPosition?: IVAPosition;
+  iibb?: string;
+  convenioMultilateral?: boolean;
+  // Código de distribuidor
+  distributorCode?: string;
 }
 
 export interface UpdateShopRequest {

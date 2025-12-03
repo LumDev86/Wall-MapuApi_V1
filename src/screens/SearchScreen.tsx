@@ -7,7 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -16,6 +15,8 @@ import type { MainStackParamList } from '../navigation/AppNavigator';
 import { COLORS } from '../constants/colors';
 import { productService } from '../services/api';
 import { SearchProduct } from '../types/product.types';
+import ImageWithFallback from '../components/ImageWithFallback';
+import { moderateScale as ms, scale as s, getGridItemWidth } from '../utils/responsive';
 
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
 
@@ -162,8 +163,8 @@ const SearchProductCard: React.FC<SearchProductCardProps> = ({ product, onPress 
   return (
     <TouchableOpacity style={styles.productCard} onPress={onPress} activeOpacity={0.8}>
       <View style={styles.productImageContainer}>
-        <Image
-          source={{ uri: product.images[0] || 'https://via.placeholder.com/200' }}
+        <ImageWithFallback
+          uri={product.images[0]}
           style={styles.productImage}
           resizeMode="contain"
         />

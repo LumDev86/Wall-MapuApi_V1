@@ -11,7 +11,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/colors';
 
-const ProfileScreen = () => {
+interface ProfileScreenProps {
+  navigation: any;
+}
+
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
@@ -89,7 +93,10 @@ const ProfileScreen = () => {
               label="Dirección"
               value={user?.address || 'No agregado'}
             />
-            <TouchableOpacity style={styles.editButton}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => navigation.navigate('EditProfile')}
+            >
               <Ionicons name="create-outline" size={20} color={COLORS.primary} />
               <Text style={styles.editButtonText}>Editar información</Text>
             </TouchableOpacity>
@@ -116,7 +123,10 @@ const ProfileScreen = () => {
                 label="Horario"
                 value="No configurado"
               />
-              <TouchableOpacity style={styles.editButton}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigation.navigate('MyShop')}
+              >
                 <Ionicons name="create-outline" size={20} color={COLORS.primary} />
                 <Text style={styles.editButtonText}>Configurar tienda</Text>
               </TouchableOpacity>
@@ -184,7 +194,10 @@ const ProfileScreen = () => {
                     <Text style={styles.benefitText}>Estadísticas detalladas</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.subscribeButton}>
+                <TouchableOpacity
+                  style={styles.subscribeButton}
+                  onPress={() => navigation.navigate('Subscription')}
+                >
                   <Ionicons name="star" size={20} color="#fff" />
                   <Text style={styles.subscribeButtonText}>Suscribirse ahora</Text>
                 </TouchableOpacity>
@@ -201,42 +214,37 @@ const ProfileScreen = () => {
               <MenuOption
                 icon="receipt-outline"
                 label="Mis Pedidos"
-                onPress={() => console.log('Mis Pedidos')}
+                onPress={() => navigation.navigate('MyOrders')}
               />
             )}
             {(user?.role === 'retailer' || user?.role === 'wholesaler') && (
               <>
                 <MenuOption
-                  icon="cube-outline"
-                  label="Mis Productos"
-                  onPress={() => console.log('Mis Productos')}
+                  icon="storefront-outline"
+                  label="Mi Tienda"
+                  onPress={() => navigation.navigate('MyShop')}
                 />
                 <MenuOption
-                  icon="stats-chart-outline"
-                  label="Estadísticas"
-                  onPress={() => console.log('Estadísticas')}
+                  icon="card-outline"
+                  label="Suscripción"
+                  onPress={() => navigation.navigate('Subscription')}
                 />
               </>
             )}
             <MenuOption
-              icon="heart-outline"
-              label="Favoritos"
-              onPress={() => console.log('Favoritos')}
-            />
-            <MenuOption
               icon="settings-outline"
               label="Configuración"
-              onPress={() => console.log('Configuración')}
+              onPress={() => navigation.navigate('Settings')}
             />
             <MenuOption
               icon="help-circle-outline"
               label="Ayuda y Soporte"
-              onPress={() => console.log('Ayuda')}
+              onPress={() => navigation.navigate('HelpSupport')}
             />
             <MenuOption
               icon="information-circle-outline"
               label="Acerca de"
-              onPress={() => console.log('Acerca de')}
+              onPress={() => navigation.navigate('About')}
             />
           </View>
         </View>

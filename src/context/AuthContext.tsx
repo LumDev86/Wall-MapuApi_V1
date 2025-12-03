@@ -5,10 +5,13 @@ import { User, LoginRequest, RegisterRequest } from '../types/auth.types';
 interface AuthContextData {
   user: User | null;
   loading: boolean;
+  needsProfileCompletion: boolean;
   login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  register: (data: RegisterRequest) => Promise<{ needsCompletion: boolean }>;
   logout: () => Promise<void>;
   clearData: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  setNeedsProfileCompletion: (value: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -16,6 +19,7 @@ const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
 
   useEffect(() => {
     loadStoredData();
@@ -46,10 +50,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (data: RegisterRequest) => {
+  const register = async (data: RegisterRequest): Promise<{ needsCompletion: boolean }> => {
     try {
       const response = await authService.register(data);
+      const isClient = data.role === 'client';
+
+      // Si es cliente, marcar que necesita completar perfil
+      if (isClient) {
+        setNeedsProfileCompletion(true);
+      }
+
       setUser(response.user);
+      return { needsCompletion: isClient };
     } catch (error) {
       throw error;
     }
@@ -73,8 +85,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const refreshUser = async () => {
+    try {
+      const updatedUser = await authService.getMe();
+      setUser(updatedUser);
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, clearData }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      needsProfileCompletion,
+      login,
+      register,
+      logout,
+      clearData,
+      refreshUser,
+      setNeedsProfileCompletion
+    }}>
       {children}
     </AuthContext.Provider>
   );

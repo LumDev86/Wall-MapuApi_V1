@@ -12,7 +12,15 @@ import {
   TextInput,
   FlatList,
   Keyboard,
+  Animated,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.5;
+const BOTTOM_SHEET_MIN_HEIGHT = 90;
+const BOTTOM_SHEET_MID_HEIGHT = 200;
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -54,6 +62,11 @@ interface PlacePrediction {
   };
 }
 
+interface UnifiedSearchResults {
+  shops: ShopWithDistance[];
+  places: PlacePrediction[];
+}
+
 const MapScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
@@ -63,12 +76,112 @@ const MapScreen = () => {
   const [selectedShop, setSelectedShop] = useState<ShopWithDistance | null>(null);
   const [deviceLocation, setDeviceLocation] = useState<Location.LocationObject | null>(null);
   const [locationPermission, setLocationPermission] = useState(false);
-  const [locationSearchQuery, setLocationSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<PlacePrediction[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<UnifiedSearchResults>({ shops: [], places: [] });
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const mapRef = useRef<any>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Bottom Sheet Animation
+  const bottomSheetHeight = useRef(new Animated.Value(BOTTOM_SHEET_MID_HEIGHT)).current;
+  const lastGestureDy = useRef(0);
+  const [sheetPosition, setSheetPosition] = useState<'min' | 'mid' | 'max'>('mid');
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        // @ts-ignore
+        bottomSheetHeight.setOffset(bottomSheetHeight._value);
+        bottomSheetHeight.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Invertimos el valor porque arrastramos hacia arriba para expandir
+        const newValue = -gestureState.dy;
+        bottomSheetHeight.setValue(newValue);
+        lastGestureDy.current = gestureState.dy;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        bottomSheetHeight.flattenOffset();
+
+        // @ts-ignore
+        const currentHeight = bottomSheetHeight._value;
+        const velocity = gestureState.vy;
+
+        let targetHeight = BOTTOM_SHEET_MID_HEIGHT;
+        let newPosition: 'min' | 'mid' | 'max' = 'mid';
+
+        // Determinar el destino basado en velocidad y posición
+        if (velocity > 0.5) {
+          // Deslizando hacia abajo rápido
+          if (currentHeight > BOTTOM_SHEET_MID_HEIGHT) {
+            targetHeight = BOTTOM_SHEET_MID_HEIGHT;
+            newPosition = 'mid';
+          } else {
+            targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
+            newPosition = 'min';
+          }
+        } else if (velocity < -0.5) {
+          // Deslizando hacia arriba rápido
+          if (currentHeight < BOTTOM_SHEET_MID_HEIGHT) {
+            targetHeight = BOTTOM_SHEET_MID_HEIGHT;
+            newPosition = 'mid';
+          } else {
+            targetHeight = BOTTOM_SHEET_MAX_HEIGHT;
+            newPosition = 'max';
+          }
+        } else {
+          // Basado en posición
+          if (currentHeight < (BOTTOM_SHEET_MIN_HEIGHT + BOTTOM_SHEET_MID_HEIGHT) / 2) {
+            targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
+            newPosition = 'min';
+          } else if (currentHeight < (BOTTOM_SHEET_MID_HEIGHT + BOTTOM_SHEET_MAX_HEIGHT) / 2) {
+            targetHeight = BOTTOM_SHEET_MID_HEIGHT;
+            newPosition = 'mid';
+          } else {
+            targetHeight = BOTTOM_SHEET_MAX_HEIGHT;
+            newPosition = 'max';
+          }
+        }
+
+        Animated.spring(bottomSheetHeight, {
+          toValue: targetHeight,
+          useNativeDriver: false,
+          bounciness: 4,
+        }).start();
+
+        setSheetPosition(newPosition);
+      },
+    })
+  ).current;
+
+  const toggleBottomSheet = () => {
+    let targetHeight: number;
+    let newPosition: 'min' | 'mid' | 'max';
+
+    if (sheetPosition === 'min') {
+      targetHeight = BOTTOM_SHEET_MID_HEIGHT;
+      newPosition = 'mid';
+    } else if (sheetPosition === 'mid') {
+      targetHeight = BOTTOM_SHEET_MAX_HEIGHT;
+      newPosition = 'max';
+    } else {
+      targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
+      newPosition = 'min';
+    }
+
+    Animated.spring(bottomSheetHeight, {
+      toValue: targetHeight,
+      useNativeDriver: false,
+      bounciness: 4,
+    }).start();
+
+    setSheetPosition(newPosition);
+  };
 
   useEffect(() => {
     fetchShops();
@@ -154,43 +267,72 @@ const MapScreen = () => {
     }
   };
 
-  const searchPlaces = async (query: string) => {
-    if (query.length < 3) {
-      setSearchResults([]);
+  // Búsqueda unificada: tiendas + ubicaciones
+  const performUnifiedSearch = async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults({ shops: [], places: [] });
       setShowSearchResults(false);
       return;
     }
 
     setSearchLoading(true);
-    try {
-      const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-          query
-        )}&key=${apiKey}&language=es&components=country:ar`
-      );
-      const data = await response.json();
 
-      if (data.status === 'OK' && data.predictions) {
-        setSearchResults(data.predictions);
-        setShowSearchResults(true);
-      } else {
-        setSearchResults([]);
-        setShowSearchResults(false);
+    try {
+      // Buscar tiendas localmente (filtrar del array de shops)
+      const queryLower = query.toLowerCase().trim();
+      const matchingShops = shops.filter(shop =>
+        shop.name.toLowerCase().includes(queryLower) ||
+        shop.address?.toLowerCase().includes(queryLower) ||
+        shop.city?.toLowerCase().includes(queryLower)
+      ).slice(0, 5); // Máximo 5 tiendas
+
+      // Buscar ubicaciones con Google Places (en paralelo)
+      let matchingPlaces: PlacePrediction[] = [];
+      try {
+        const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+        if (apiKey) {
+          const response = await fetch(
+            `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+              query
+            )}&key=${apiKey}&language=es&components=country:ar`
+          );
+          const data = await response.json();
+          if (data.status === 'OK' && data.predictions) {
+            matchingPlaces = data.predictions.slice(0, 3); // Máximo 3 ubicaciones
+          }
+        }
+      } catch (placeError) {
+        console.log('Error buscando lugares:', placeError);
       }
+
+      setSearchResults({
+        shops: matchingShops,
+        places: matchingPlaces,
+      });
+      setShowSearchResults(matchingShops.length > 0 || matchingPlaces.length > 0);
     } catch (error) {
-      console.error('Error en búsqueda de lugares:', error);
-      setSearchResults([]);
+      console.error('Error en búsqueda unificada:', error);
+      setSearchResults({ shops: [], places: [] });
       setShowSearchResults(false);
     } finally {
       setSearchLoading(false);
     }
   };
 
-  const handlePlaceSelect = async (placeId: string, description: string) => {
-    setLocationSearchQuery(description);
+  // Seleccionar tienda de los resultados
+  const handleShopSelect = (shop: ShopWithDistance) => {
+    setSearchQuery(shop.name);
     setShowSearchResults(false);
-    setSearchResults([]);
+    setSearchResults({ shops: [], places: [] });
+    Keyboard.dismiss();
+    centerOnShop(shop);
+  };
+
+  // Seleccionar ubicación de los resultados
+  const handlePlaceSelect = async (placeId: string, description: string) => {
+    setSearchQuery(description);
+    setShowSearchResults(false);
+    setSearchResults({ shops: [], places: [] });
     Keyboard.dismiss();
 
     try {
@@ -203,7 +345,6 @@ const MapScreen = () => {
       if (data.status === 'OK' && data.result?.geometry?.location) {
         const { lat, lng } = data.result.geometry.location;
 
-        // Animar el mapa a la nueva ubicación
         const newRegion = {
           latitude: lat,
           longitude: lng,
@@ -229,12 +370,12 @@ const MapScreen = () => {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    if (locationSearchQuery.trim()) {
+    if (searchQuery.trim()) {
       searchTimeoutRef.current = setTimeout(() => {
-        searchPlaces(locationSearchQuery);
-      }, 500);
+        performUnifiedSearch(searchQuery);
+      }, 300); // 300ms debounce para búsqueda más rápida
     } else {
-      setSearchResults([]);
+      setSearchResults({ shops: [], places: [] });
       setShowSearchResults(false);
     }
 
@@ -243,7 +384,7 @@ const MapScreen = () => {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [locationSearchQuery]);
+  }, [searchQuery, shops]);
 
   if (loading) {
     return (
@@ -253,115 +394,39 @@ const MapScreen = () => {
     );
   }
 
+  // Centrar mapa en tienda seleccionada
+  const centerOnShop = (shop: ShopWithDistance) => {
+    setSelectedShop(shop);
+    if (mapRef.current && shop.latitude && shop.longitude) {
+      mapRef.current.animateToRegion({
+        latitude: parseFloat(shop.latitude),
+        longitude: parseFloat(shop.longitude),
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.locationButton}>
-          <Ionicons name="location" size={20} color="#fff" />
-          <Text style={styles.locationText}>
-            {user?.city && user?.province
-              ? `${user.city}, ${user.province}`
-              : user?.city || user?.province || 'Ubicación no configurada'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.cartButton}>
-          <Ionicons name="cart-outline" size={28} color="#fff" />
-          {getTotalItems() > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{getTotalItems()}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Buscador de ubicaciones */}
-      <View style={styles.locationSearchWrapper}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar ubicación..."
-            placeholderTextColor="#999"
-            value={locationSearchQuery}
-            onChangeText={setLocationSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchLoading && (
-            <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchLoader} />
-          )}
-          {locationSearchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => {
-                setLocationSearchQuery('');
-                setSearchResults([]);
-                setShowSearchResults(false);
-              }}
-              style={styles.clearButton}
-            >
-              <Ionicons name="close-circle" size={20} color="#999" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Lista de sugerencias */}
-        {showSearchResults && searchResults.length > 0 && (
-          <View style={styles.suggestionsContainer}>
-            <FlatList
-              data={searchResults}
-              keyExtractor={(item) => item.place_id}
-              scrollEnabled={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.suggestionItem}
-                  onPress={() => handlePlaceSelect(item.place_id, item.description)}
-                >
-                  <Ionicons name="location-outline" size={20} color={COLORS.primary} />
-                  <View style={styles.suggestionTextContainer}>
-                    <Text style={styles.suggestionMainText}>
-                      {item.structured_formatting.main_text}
-                    </Text>
-                    <Text style={styles.suggestionSecondaryText}>
-                      {item.structured_formatting.secondary_text}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        )}
-      </View>
-
-      <View style={styles.mapContainer}>
+      {/* Mapa a pantalla completa */}
+      <View style={styles.fullMapContainer}>
         {MapView ? (
           <MapView
             ref={mapRef}
             provider={PROVIDER_GOOGLE}
-            style={styles.map}
+            style={styles.fullMap}
             initialRegion={{
-              latitude: deviceLocation?.coords.latitude || user?.latitude || -32.4827, // Concepción del Uruguay por defecto
+              latitude: deviceLocation?.coords.latitude || user?.latitude || -32.4827,
               longitude: deviceLocation?.coords.longitude || user?.longitude || -58.2363,
               latitudeDelta: 0.0922,
               longitudeDelta: 0.0421,
             }}
             showsUserLocation={true}
-            showsMyLocationButton={true}
+            showsMyLocationButton={false}
             showsCompass={true}
             showsScale={true}
           >
-            {/* Marcador del usuario (solo si tiene coordenadas) */}
-            {(deviceLocation || (user?.latitude && user?.longitude)) && (
-              <Marker
-                coordinate={{
-                  latitude: deviceLocation?.coords.latitude || user?.latitude || -32.4827,
-                  longitude: deviceLocation?.coords.longitude || user?.longitude || -58.2363,
-                }}
-                title="Tu ubicación"
-                description={user?.city && user?.province ? `${user.city}, ${user.province}` : 'Mi ubicación'}
-                pinColor="#4285F4"
-              />
-            )}
-
             {/* Marcadores de tiendas */}
             {shops.map((shop) => {
               if (!shop.latitude || !shop.longitude) return null;
@@ -377,7 +442,7 @@ const MapScreen = () => {
                   title={shop.name}
                   description={`${shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}${shop.distance ? ` - ${shop.distance}km` : ''}`}
                   pinColor={isSelected ? '#FF6B35' : COLORS.primary}
-                  onPress={() => setSelectedShop(shop)}
+                  onPress={() => centerOnShop(shop)}
                 />
               );
             })}
@@ -396,77 +461,256 @@ const MapScreen = () => {
             </Text>
           </View>
         )}
-      </View>
 
-      <View style={styles.bottomSheet}>
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Tiendas Cerca de vos</Text>
-          <TouchableOpacity>
-            <Ionicons name="options-outline" size={24} color={COLORS.text} />
+        {/* Header flotante sobre el mapa */}
+        <View style={styles.floatingHeader}>
+          <TouchableOpacity style={styles.locationButton}>
+            <Ionicons name="location" size={18} color="#fff" />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {user?.city && user?.province
+                ? `${user.city}, ${user.province}`
+                : user?.city || user?.province || 'Ubicación'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cartButton}
+            onPress={() => navigation.navigate('Cart')}
+          >
+            <Ionicons name="cart-outline" size={24} color="#fff" />
+            {getTotalItems() > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{getTotalItems()}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
+        {/* Buscador flotante */}
+        <View style={styles.floatingSearchWrapper}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar tiendas o ubicaciones..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchLoading && (
+              <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchLoader} />
+            )}
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchQuery('');
+                  setSearchResults({ shops: [], places: [] });
+                  setShowSearchResults(false);
+                }}
+                style={styles.clearButton}
+              >
+                <Ionicons name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Resultados de búsqueda unificada */}
+          {showSearchResults && (
+            <ScrollView
+              style={styles.suggestionsContainer}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
+              {/* Sección: Tiendas */}
+              {searchResults.shops.length > 0 && (
+                <View>
+                  <View style={styles.searchSectionHeader}>
+                    <Ionicons name="storefront" size={16} color={COLORS.primary} />
+                    <Text style={styles.searchSectionTitle}>TIENDAS</Text>
+                  </View>
+                  {searchResults.shops.map((shop) => (
+                    <TouchableOpacity
+                      key={shop.id}
+                      style={styles.suggestionItem}
+                      onPress={() => handleShopSelect(shop)}
+                    >
+                      <View style={styles.shopSearchIcon}>
+                        <Ionicons name="storefront" size={18} color="#fff" />
+                      </View>
+                      <View style={styles.suggestionTextContainer}>
+                        <Text style={styles.suggestionMainText}>{shop.name}</Text>
+                        <Text style={styles.suggestionSecondaryText}>
+                          {shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}
+                          {shop.distance !== undefined ? ` · ${shop.distance} km` : ''}
+                          {shop.city ? ` · ${shop.city}` : ''}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Sección: Ubicaciones */}
+              {searchResults.places.length > 0 && (
+                <View>
+                  <View style={styles.searchSectionHeader}>
+                    <Ionicons name="location" size={16} color="#FF6B35" />
+                    <Text style={styles.searchSectionTitle}>UBICACIONES</Text>
+                  </View>
+                  {searchResults.places.map((place) => (
+                    <TouchableOpacity
+                      key={place.place_id}
+                      style={styles.suggestionItem}
+                      onPress={() => handlePlaceSelect(place.place_id, place.description)}
+                    >
+                      <View style={styles.placeSearchIcon}>
+                        <Ionicons name="location" size={18} color="#fff" />
+                      </View>
+                      <View style={styles.suggestionTextContainer}>
+                        <Text style={styles.suggestionMainText}>
+                          {place.structured_formatting.main_text}
+                        </Text>
+                        <Text style={styles.suggestionSecondaryText}>
+                          {place.structured_formatting.secondary_text}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Sin resultados */}
+              {searchResults.shops.length === 0 && searchResults.places.length === 0 && searchQuery.length >= 2 && !searchLoading && (
+                <View style={styles.noResultsContainer}>
+                  <Ionicons name="search-outline" size={32} color="#ccc" />
+                  <Text style={styles.noResultsText}>No se encontraron resultados</Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Botón Mi ubicación */}
+        <TouchableOpacity
+          style={styles.myLocationButton}
+          onPress={async () => {
+            const location = await requestLocationPermission();
+            if (location && mapRef.current) {
+              mapRef.current.animateToRegion({
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }, 500);
+            }
+          }}
+        >
+          <Ionicons name="locate" size={22} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Bottom Sheet Deslizable */}
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          { height: bottomSheetHeight }
+        ]}
+      >
+        {/* Handle para arrastrar */}
+        <View {...panResponder.panHandlers} style={styles.sheetHandleContainer}>
+          <View style={styles.sheetHandle} />
+        </View>
+
+        <TouchableOpacity
+          style={styles.sheetHeader}
+          onPress={toggleBottomSheet}
+          activeOpacity={0.7}
+        >
+          <View style={styles.sheetTitleContainer}>
+            <Text style={styles.sheetTitle}>Tiendas Cerca de vos</Text>
+            <Text style={styles.sheetSubtitle}>{shops.length} tiendas encontradas</Text>
+          </View>
+          <Ionicons
+            name={sheetPosition === 'max' ? 'chevron-down' : 'chevron-up'}
+            size={24}
+            color={COLORS.gray}
+          />
+        </TouchableOpacity>
+
         {shops.length === 0 && !loading ? (
           <View style={styles.noLocationContainer}>
-            <Ionicons name="location-outline" size={48} color="#999" />
+            <Ionicons name="storefront-outline" size={48} color="#999" />
             <Text style={styles.noLocationText}>
               No hay tiendas disponibles en este momento
             </Text>
           </View>
-        ) : null}
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.shopsListContent}
-          style={styles.shopsList}
-        >
-          {shops.map((shop) => (
-            <ShopCard
-              key={shop.id}
-              shop={shop}
-              isSelected={selectedShop?.id === shop.id}
-              onPress={() => setSelectedShop(shop)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.shopsListVertical}
+            scrollEnabled={sheetPosition !== 'min'}
+          >
+            {shops.map((shop) => (
+              <ShopCardVertical
+                key={shop.id}
+                shop={shop}
+                isSelected={selectedShop?.id === shop.id}
+                onPress={() => centerOnShop(shop)}
+                onNavigate={() => navigation.navigate('ShopDetail', { shopId: shop.id })}
+              />
+            ))}
+          </ScrollView>
+        )}
+      </Animated.View>
     </View>
   );
 };
 
-interface ShopCardProps {
+interface ShopCardVerticalProps {
   shop: ShopWithDistance;
   isSelected: boolean;
   onPress: () => void;
+  onNavigate: () => void;
 }
 
-const ShopCard: React.FC<ShopCardProps> = ({ shop, isSelected, onPress }) => {
+const ShopCardVertical: React.FC<ShopCardVerticalProps> = ({ shop, isSelected, onPress, onNavigate }) => {
   return (
     <TouchableOpacity
-      style={[styles.shopCard, isSelected && styles.shopCardSelected]}
+      style={[styles.shopCardVertical, isSelected && styles.shopCardVerticalSelected]}
       onPress={onPress}
+      onLongPress={onNavigate}
     >
-      <View style={styles.shopLogoContainer}>
-        <Image source={{ uri: shop.logo }} style={styles.shopLogo} resizeMode="contain" />
+      <View style={styles.shopLogoContainerVertical}>
+        {shop.logo ? (
+          <Image source={{ uri: shop.logo }} style={styles.shopLogoVertical} resizeMode="cover" />
+        ) : (
+          <View style={styles.shopLogoPlaceholder}>
+            <Ionicons name="storefront" size={24} color={COLORS.primary} />
+          </View>
+        )}
       </View>
-      <View style={styles.shopInfo}>
-        <Text style={styles.shopName} numberOfLines={1}>
+      <View style={styles.shopInfoVertical}>
+        <Text style={styles.shopNameVertical} numberOfLines={1}>
           {shop.name}
         </Text>
-        <Text style={styles.shopCategory} numberOfLines={1}>
-          Alimento
-        </Text>
-        <Text style={styles.shopType} numberOfLines={1}>
+        <Text style={styles.shopTypeVertical} numberOfLines={1}>
           {shop.type === 'retailer' ? 'Minorista' : 'Mayorista'}
         </Text>
+        <View style={styles.shopMetaRow}>
+          <View style={styles.distanceBadge}>
+            <Ionicons name="location-outline" size={14} color={COLORS.primary} />
+            <Text style={styles.distanceTextVertical}>
+              {shop.distance !== undefined ? `${shop.distance} km` : 'N/A'}
+            </Text>
+          </View>
+        </View>
       </View>
-      <View style={styles.shopDistance}>
-        <Ionicons name="location-outline" size={16} color="#666" />
-        <Text style={styles.distanceText}>
-          {shop.distance !== undefined ? `${shop.distance}km` : 'N/A'}
-        </Text>
-      </View>
+      <TouchableOpacity style={styles.navigateButton} onPress={onNavigate}>
+        <Ionicons name="chevron-forward" size={24} color={COLORS.gray} />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 };
@@ -482,73 +726,96 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
   },
-  header: {
-    backgroundColor: COLORS.primary,
+  // Mapa a pantalla completa
+  fullMapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  fullMap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  // Header flotante
+  floatingHeader: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
+    zIndex: 10,
   },
   locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
     gap: 6,
+    maxWidth: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   locationText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
   cartButton: {
     position: 'relative',
-    padding: 8,
+    backgroundColor: COLORS.primary,
+    padding: 10,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   cartBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 2,
+    right: 2,
     backgroundColor: '#FF3B30',
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cartBadgeText: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 'bold',
+  },
+  // Buscador flotante
+  floatingSearchWrapper: {
+    position: 'absolute',
+    top: 110,
+    left: 16,
+    right: 16,
+    zIndex: 10,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
   },
   searchIcon: {
     marginRight: 10,
-  },
-  searchPlaceholder: {
-    flex: 1,
-    fontSize: 14,
-    color: '#999',
-  },
-  locationSearchWrapper: {
-    marginHorizontal: 20,
-    marginBottom: 16,
   },
   searchInput: {
     flex: 1,
@@ -568,20 +835,52 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    maxHeight: 200,
-    overflow: 'hidden',
+    maxHeight: 320,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  searchSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#F8F8F8',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  searchSectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#888',
+    letterSpacing: 0.5,
   },
   suggestionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+  },
+  shopSearchIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeSearchIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   suggestionTextContainer: {
     flex: 1,
@@ -594,20 +893,38 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   suggestionSecondaryText: {
-    fontSize: 13,
-    color: '#666',
+    fontSize: 12,
+    color: '#888',
   },
-  mapContainer: {
-    flex: 1,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
+  noResultsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
   },
-  map: {
-    width: '100%',
-    height: '100%',
+  noResultsText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#999',
   },
+  // Botón mi ubicación
+  myLocationButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 16,
+    backgroundColor: '#fff',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 5,
+  },
+  // Mapa placeholder
   mapPlaceholder: {
     flex: 1,
     backgroundColor: '#E8F5F0',
@@ -646,34 +963,56 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontStyle: 'italic',
   },
+  // Bottom Sheet
   bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 20,
-    paddingBottom: 100,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 20,
+    overflow: 'hidden',
+  },
+  sheetHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#DDD',
+    borderRadius: 3,
   },
   sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 16,
+    paddingBottom: 12,
+  },
+  sheetTitleContainer: {
+    flex: 1,
   },
   sheetTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
   },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
   noLocationContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
+    paddingVertical: 30,
     paddingHorizontal: 40,
   },
   noLocationText: {
@@ -683,69 +1022,83 @@ const styles = StyleSheet.create({
     marginTop: 12,
     lineHeight: 20,
   },
-  shopsList: {
-    maxHeight: 140,
+  // Lista vertical de tiendas
+  shopsListVertical: {
+    paddingHorizontal: 16,
+    paddingBottom: 100,
   },
-  shopsListContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  shopCard: {
+  // ShopCard Vertical
+  shopCardVertical: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 12,
-    marginRight: 12,
-    width: 280,
+    marginBottom: 12,
     borderWidth: 1.5,
-    borderColor: '#E0E0E0',
+    borderColor: '#E8E8E8',
     alignItems: 'center',
   },
-  shopCardSelected: {
+  shopCardVerticalSelected: {
     borderColor: COLORS.primary,
     backgroundColor: '#F0F9F6',
   },
-  shopLogoContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  shopLogoContainerVertical: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
     backgroundColor: '#f5f5f5',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
   },
-  shopLogo: {
-    width: 40,
-    height: 40,
+  shopLogoVertical: {
+    width: 56,
+    height: 56,
   },
-  shopInfo: {
+  shopLogoPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#E8F5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shopInfoVertical: {
     flex: 1,
     marginRight: 8,
   },
-  shopName: {
+  shopNameVertical: {
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  shopCategory: {
+  shopTypeVertical: {
     fontSize: 13,
     color: '#666',
-    marginBottom: 2,
+    marginBottom: 6,
   },
-  shopType: {
-    fontSize: 12,
-    color: '#999',
-  },
-  shopDistance: {
+  shopMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  distanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     gap: 4,
   },
-  distanceText: {
-    fontSize: 13,
-    color: '#666',
-    fontWeight: '500',
+  distanceTextVertical: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  navigateButton: {
+    padding: 8,
   },
 });
 

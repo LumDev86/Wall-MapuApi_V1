@@ -1,0 +1,73 @@
+================================================================================
+CONFIGURACION MERCADO PAGO - WALL MAPU API
+================================================================================
+
+================================================================================
+VARIABLES DE ENTORNO PARA RAILWAY (MODO PRUEBA)
+================================================================================
+
+Copia y pega estas variables en la configuracion de Railway:
+
+MP_PUBLIC_KEY=TEST-e0e34682-8fce-494b-85b1-0b553a10f4d1
+MP_ACCESS_TOKEN=TEST-4005618168380752-120300-bc13cf63fa5fa91ac62834bb4c5018fc-738900958
+MP_WEBHOOK_SECRET=bc7a9b4725ddb49daf893ac4a91ed45f389a1c4c6d8fe05f84ec1f3e9f6501cf
+
+================================================================================
+TARJETA DE PRUEBA PARA TESTEAR
+================================================================================
+
+Usa esta tarjeta para probar pagos (NO es una tarjeta real):
+
+Tipo: Mastercard
+Numero: 5031 7557 3453 0604
+CVV: 123
+Vencimiento: 11/30
+Nombre: APRO (para aprobar) o cualquier nombre
+DNI: cualquier numero (ej: 12345678)
+
+NOTA: Si pones "APRO" como nombre, el pago se aprueba automaticamente.
+      Si pones "OTHE" el pago queda pendiente.
+      Si pones "CONT" el pago queda pendiente de contingencia.
+
+================================================================================
+WEBHOOK CONFIGURADO
+================================================================================
+
+Ya configure el webhook en Mercado Pago Developers apuntando a:
+
+URL: https://wall-mapuapi-production.up.railway.app/api/webhooks/mercadopago
+Eventos: Pagos
+Clave secreta: bc7a9b4725ddb49daf893ac4a91ed45f389a1c4c6d8fe05f84ec1f3e9f6501cf
+
+El backend debe validar las notificaciones usando esa clave secreta.
+
+================================================================================
+ERROR ACTUAL
+================================================================================
+
+Cuando intento suscribirme desde la app, el endpoint POST /api/subscriptions
+devuelve error 500.
+
+Probablemente falta configurar las credenciales de Mercado Pago o hay un error
+al generar el init_point (link de pago).
+
+Por favor revisa:
+1. Que las variables de entorno esten configuradas
+2. Que la SDK de Mercado Pago este inicializada con el ACCESS_TOKEN
+3. Los logs del servidor cuando se hace el request
+
+================================================================================
+FLUJO QUE DEBERIA FUNCIONAR
+================================================================================
+
+1. App envia POST /api/subscriptions con { plan, shopId, autoRenew }
+2. Backend crea suscripcion con status "PENDING"
+3. Backend usa SDK de Mercado Pago para crear preferencia de pago
+4. Mercado Pago devuelve "init_point" (URL de checkout)
+5. Backend devuelve la suscripcion con el init_point
+6. App abre el init_point en el navegador
+7. Usuario paga con la tarjeta de prueba
+8. Mercado Pago envia webhook al backend
+9. Backend actualiza suscripcion a "ACTIVE" y tienda a "active"
+10. Tienda aparece en el mapa
+

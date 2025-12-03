@@ -1,0 +1,114 @@
+================================================================================
+ERROR EN ENDPOINT DE SUSCRIPCION - WALL MAPU API
+================================================================================
+
+FECHA: 3 de Diciembre 2025
+REPORTADO POR: Frontend Team
+
+--------------------------------------------------------------------------------
+DESCRIPCION DEL ERROR
+--------------------------------------------------------------------------------
+
+Al intentar crear una suscripcion desde la app, el endpoint devuelve error 500.
+
+Endpoint afectado: POST /api/subscriptions
+
+Request enviado:
+{
+  "plan": "retailer",      // o "wholesaler"
+  "shopId": "uuid-de-la-tienda",
+  "autoRenew": true
+}
+
+Response recibido:
+- Status: 500 Internal Server Error
+- Error: AxiosError: Request failed with status code 500
+
+--------------------------------------------------------------------------------
+ANALISIS
+--------------------------------------------------------------------------------
+
+Segun la documentacion de la API (https://wall-mapuapi-production.up.railway.app/api/docs):
+
+- El endpoint deberia devolver 201 con el objeto Subscription incluyendo "initPoint"
+- Los errores esperados son 400 (tienda ya tiene suscripcion) o 403 (sin permiso)
+- Un error 500 indica un problema interno del servidor
+
+El error 500 probablemente ocurre al intentar generar el "initPoint" de Mercado Pago.
+
+--------------------------------------------------------------------------------
+POSIBLES CAUSAS
+--------------------------------------------------------------------------------
+
+1. ACCESS TOKEN DE MERCADO PAGO NO CONFIGURADO O INVALIDO
+   - Verificar que la variable MP_ACCESS_TOKEN este configurada en Railway
+   - El token debe ser valido y no estar expirado
+
+2. CREDENCIALES EN MODO INCORRECTO
+   - Si la app esta en modo PRUEBA -> usar credenciales de PRUEBA
+   - Si la app esta en modo PRODUCCION -> usar credenciales de PRODUCCION
+   - No mezclar credenciales de prueba con produccion
+
+3. WEBHOOK SECRET NO COINCIDE
+   - En Mercado Pago Developers se configuro el webhook con esta clave:
+     bc7a9b4725ddb49daf893ac4a91ed45f389a1c4c6d8fe05f84ec1f3e9f6501cf
+   - Verificar que el backend tenga la misma clave en MP_WEBHOOK_SECRET
+
+4. ERROR EN LA INTEGRACION CON MERCADO PAGO
+   - Revisar que la libreria de Mercado Pago este correctamente instalada
+   - Verificar que se este usando la API correcta (v1 o v2)
+
+--------------------------------------------------------------------------------
+VARIABLES DE ENTORNO A VERIFICAR EN RAILWAY
+--------------------------------------------------------------------------------
+
+MP_ACCESS_TOKEN=APP_USR-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+MP_PUBLIC_KEY=APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MP_WEBHOOK_SECRET=bc7a9b4725ddb49daf893ac4a91ed45f389a1c4c6d8fe05f84ec1f3e9f6501cf
+
+(Las credenciales se obtienen de https://www.mercadopago.com.ar/developers/panel)
+
+--------------------------------------------------------------------------------
+PASOS PARA DEBUGGEAR
+--------------------------------------------------------------------------------
+
+1. Revisar los logs del servidor en Railway al momento de hacer el request
+2. Verificar que las credenciales de MP esten correctamente configuradas
+3. Probar el endpoint manualmente con Postman o curl
+4. Si usa la SDK de Mercado Pago, verificar que este inicializada correctamente
+
+--------------------------------------------------------------------------------
+WEBHOOK CONFIGURADO EN MERCADO PAGO
+--------------------------------------------------------------------------------
+
+URL del Webhook (Modo Prueba):
+https://wall-mapuapi-production.up.railway.app/api/webhooks/mercadopago
+
+Eventos seleccionados: Pagos
+
+IMPORTANTE: Tambien configurar el mismo webhook en "Modo Productivo" cuando
+se pase a produccion.
+
+--------------------------------------------------------------------------------
+FLUJO ESPERADO
+--------------------------------------------------------------------------------
+
+1. Frontend envia POST /api/subscriptions con plan y shopId
+2. Backend crea la suscripcion con status "PENDING"
+3. Backend llama a Mercado Pago para crear preferencia de pago
+4. Mercado Pago devuelve "init_point" (URL de pago)
+5. Backend guarda el init_point y lo devuelve al frontend
+6. Frontend abre la URL de Mercado Pago
+7. Usuario paga
+8. Mercado Pago envia webhook a /api/webhooks/mercadopago
+9. Backend actualiza status de suscripcion a "ACTIVE"
+10. Backend actualiza status de tienda a "active"
+11. Tienda aparece en el mapa
+
+--------------------------------------------------------------------------------
+CONTACTO
+--------------------------------------------------------------------------------
+
+Si necesitas mas informacion del frontend o logs adicionales, contactame.
+
+================================================================================

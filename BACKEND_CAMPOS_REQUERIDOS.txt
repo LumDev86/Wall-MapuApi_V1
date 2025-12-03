@@ -1,0 +1,371 @@
+================================================================================
+                    WALL-MAPU - CAMPOS REQUERIDOS EN BACKEND
+================================================================================
+
+Este documento detalla todos los campos nuevos que el frontend envía y que
+necesitan ser implementados en el backend para que la aplicación funcione
+correctamente.
+
+Fecha: Diciembre 2024
+Autor: Equipo Frontend
+
+================================================================================
+                         1. REGISTRO DE USUARIOS
+                            POST /api/auth/register
+================================================================================
+
+El frontend ahora envía campos adicionales dependiendo del tipo de usuario.
+
+CAMPOS BASE (ya existentes):
+- email: string (requerido)
+- password: string (requerido)
+- name: string (requerido)
+- phone: string (requerido)
+- role: 'client' | 'retailer' | 'wholesaler' (requerido)
+
+--------------------------------------------------------------------------------
+1.1 CAMPOS ADICIONALES PARA TIENDAS (role = 'retailer' o 'wholesaler')
+--------------------------------------------------------------------------------
+
+| Campo     | Tipo   | Requerido | Descripcion                              |
+|-----------|--------|-----------|------------------------------------------|
+| province  | string | No        | Provincia de la tienda                   |
+| city      | string | No        | Ciudad de la tienda                      |
+| address   | string | No        | Direccion completa                       |
+| latitude  | number | No        | Latitud para ubicacion en mapa           |
+| longitude | number | No        | Longitud para ubicacion en mapa          |
+
+--------------------------------------------------------------------------------
+1.2 CAMPOS ADICIONALES PARA CLIENTES (role = 'client')
+--------------------------------------------------------------------------------
+
+| Campo        | Tipo    | Requerido | Descripcion                           |
+|--------------|---------|-----------|---------------------------------------|
+| birthDate    | string  | No        | Fecha nacimiento (ISO 8601)           |
+| gender       | string  | No        | 'female', 'male', 'other'             |
+| city         | string  | No        | Ciudad del cliente                    |
+| barrio       | string  | No        | Barrio/zona del cliente               |
+| hasDogs      | boolean | No        | Tiene perros? (default: false)        |
+| hasCats      | boolean | No        | Tiene gatos? (default: false)         |
+| hasOtherPets | boolean | No        | Tiene otras mascotas? (default: false)|
+| pets         | array   | No        | Array de mascotas (ver estructura)    |
+
+ESTRUCTURA DE CADA MASCOTA EN EL ARRAY 'pets':
+{
+  "id": "string",      // ID unico generado en frontend
+  "type": "string",    // 'dog', 'cat', 'other'
+  "name": "string",    // Nombre de la mascota (requerido si se agrega)
+  "breed": "string",   // Raza (opcional)
+  "age": "string"      // Edad ej: "2 años", "6 meses" (opcional)
+}
+
+EJEMPLO DE REQUEST PARA CLIENTE:
+{
+  "email": "cliente@ejemplo.com",
+  "password": "password123",
+  "name": "Juan Perez",
+  "phone": "+5491112345678",
+  "role": "client",
+  "birthDate": "1990-05-15T00:00:00.000Z",
+  "gender": "male",
+  "city": "Buenos Aires",
+  "barrio": "Palermo",
+  "hasDogs": true,
+  "hasCats": false,
+  "hasOtherPets": false,
+  "pets": [
+    {
+      "id": "1701234567890",
+      "type": "dog",
+      "name": "Rocky",
+      "breed": "Labrador",
+      "age": "3 años"
+    }
+  ]
+}
+
+
+================================================================================
+                         2. CREACION DE TIENDAS
+                            POST /api/shops
+================================================================================
+
+El frontend ahora envía campos adicionales para categorizar las tiendas y
+almacenar datos fiscales.
+
+CAMPOS BASE (ya existentes):
+- name: string (requerido)
+- address: string (requerido)
+- province: string (requerido)
+- city: string (requerido)
+- type: 'retailer' | 'wholesaler' (requerido)
+- description: string (opcional)
+- phone: string (opcional)
+- email: string (opcional)
+- website: string (opcional)
+- latitude: number (opcional)
+- longitude: number (opcional)
+- schedule: object (opcional)
+- logo: file (opcional)
+- banner: file (opcional)
+
+--------------------------------------------------------------------------------
+2.1 NUEVOS CAMPOS DE CATEGORIA Y CONTACTO
+--------------------------------------------------------------------------------
+
+| Campo             | Tipo   | Requerido | Descripcion                       |
+|-------------------|--------|-----------|-----------------------------------|
+| category          | string | No        | Categoria del comercio (ver enum) |
+| whatsapp          | string | No        | Numero de WhatsApp para clientes  |
+| notificationEmail | string | No        | Email para recibir notificaciones |
+| distributorCode   | string | No*       | Codigo si category='distribuidor' |
+
+VALORES PERMITIDOS PARA 'category':
+- 'petshop'      -> Pet Shop / Almacen de mascotas
+- 'forrajeria'   -> Forrajeria
+- 'veterinaria'  -> Veterinaria
+- 'distribuidor' -> Distribuidor mayorista
+
+IMPORTANTE SOBRE DISTRIBUIDORES:
+- El campo 'distributorCode' es OPCIONAL por ahora (ver nota abajo)
+- El codigo tiene formato: CP + 2 letras + 2 numeros (ej: CPAB01, CPZZ99)
+- El type automaticamente sera 'wholesaler' para distribuidores
+- Si se proporciona un codigo, el frontend valida el formato antes de enviar
+
+* NOTA SOBRE distributorCode (ESTADO ACTUAL):
+  El frontend actualmente NO requiere el codigo de distribuidor para crear
+  tiendas con category='distribuidor'. Esto es TEMPORAL para permitir pruebas
+  mientras el backend no tiene implementada la validacion de codigos.
+
+  CUANDO EL BACKEND ESTE LISTO:
+  1. Crear el endpoint de validacion de codigos (ver seccion 5)
+  2. Avisar al equipo frontend para hacer el campo obligatorio
+  3. El frontend ya tiene la validacion de formato implementada
+
+--------------------------------------------------------------------------------
+2.2 NUEVOS CAMPOS DE DATOS FISCALES
+--------------------------------------------------------------------------------
+
+| Campo               | Tipo    | Requerido | Descripcion                    |
+|---------------------|---------|-----------|--------------------------------|
+| razonSocial         | string  | No        | Razon social o nombre fiscal   |
+| direccionFiscal     | string  | No        | Direccion registrada en AFIP   |
+| cuit                | string  | No        | CUIT sin guiones (11 digitos)  |
+| ivaPosition         | string  | No        | Posicion frente al IVA         |
+| iibb                | string  | No        | Numero de Ingresos Brutos      |
+| convenioMultilateral| boolean | No        | Inscripto en Conv. Multilateral|
+
+VALORES PERMITIDOS PARA 'ivaPosition':
+- 'responsable_inscripto'
+- 'monotributo'
+- 'exento'
+- 'consumidor_final'
+
+NOTA SOBRE CUIT:
+- El frontend envia el CUIT sin guiones (solo 11 digitos)
+- El frontend ya valida que tenga 11 digitos
+- Ejemplo: "20123456789" (no "20-12345678-9")
+
+EJEMPLO DE REQUEST PARA CREAR TIENDA COMPLETA:
+{
+  "name": "Mascoteria El Amigo Fiel",
+  "description": "Venta de alimentos y accesorios",
+  "address": "Av. Corrientes 1234",
+  "province": "Buenos Aires",
+  "city": "CABA",
+  "type": "retailer",
+  "category": "petshop",
+  "phone": "+5491112345678",
+  "whatsapp": "+5491187654321",
+  "email": "tienda@ejemplo.com",
+  "notificationEmail": "notificaciones@ejemplo.com",
+  "website": "https://www.mitienda.com",
+  "latitude": -34.6037,
+  "longitude": -58.3816,
+  "razonSocial": "Juan Perez",
+  "direccionFiscal": "Av. Corrientes 1234, CABA",
+  "cuit": "20123456789",
+  "ivaPosition": "monotributo",
+  "iibb": "12345678",
+  "convenioMultilateral": false,
+  "schedule": {
+    "monday": { "open": "09:00", "close": "18:00" },
+    "tuesday": { "open": "09:00", "close": "18:00" }
+  }
+}
+
+EJEMPLO DE REQUEST PARA DISTRIBUIDOR (sin codigo - estado actual):
+{
+  "name": "Distribuidora Norte",
+  "address": "Parque Industrial Lote 5",
+  "province": "Buenos Aires",
+  "city": "Pilar",
+  "type": "wholesaler",
+  "category": "distribuidor",
+  "phone": "+5491112345678",
+  "razonSocial": "Distribuidora Norte SRL",
+  "cuit": "30123456789",
+  "ivaPosition": "responsable_inscripto"
+}
+
+EJEMPLO DE REQUEST PARA DISTRIBUIDOR (con codigo - cuando este implementado):
+{
+  "name": "Distribuidora Norte",
+  "address": "Parque Industrial Lote 5",
+  "province": "Buenos Aires",
+  "city": "Pilar",
+  "type": "wholesaler",
+  "category": "distribuidor",
+  "distributorCode": "CPAB01",
+  "phone": "+5491112345678",
+  "razonSocial": "Distribuidora Norte SRL",
+  "cuit": "30123456789",
+  "ivaPosition": "responsable_inscripto"
+}
+
+
+================================================================================
+                    3. ACTUALIZACION DE TIENDAS
+                       PATCH /api/shops/:id
+================================================================================
+
+Los mismos campos nuevos de la seccion 2 deben poder actualizarse.
+Todos los campos son opcionales en el PATCH.
+
+
+================================================================================
+                    4. RESPUESTAS DEL BACKEND
+================================================================================
+
+El modelo de Shop en las respuestas debe incluir los nuevos campos:
+
+MODELO SHOP ACTUALIZADO:
+{
+  "id": "string",
+  "name": "string",
+  "description": "string",
+  "address": "string",
+  "province": "string",
+  "city": "string",
+  "latitude": "string",
+  "longitude": "string",
+  "type": "retailer | wholesaler",
+  "category": "petshop | forrajeria | veterinaria | distribuidor",  // NUEVO
+  "status": "string",
+  "phone": "string",
+  "whatsapp": "string",                    // NUEVO
+  "email": "string",
+  "notificationEmail": "string",           // NUEVO
+  "website": "string",
+  "schedule": {},
+  "logo": "string",
+  "banner": "string",
+  "isActive": "boolean",
+  "razonSocial": "string",                 // NUEVO
+  "direccionFiscal": "string",             // NUEVO
+  "cuit": "string",                        // NUEVO
+  "ivaPosition": "string",                 // NUEVO
+  "iibb": "string",                        // NUEVO
+  "convenioMultilateral": "boolean",       // NUEVO
+  "createdAt": "string",
+  "updatedAt": "string"
+}
+
+
+================================================================================
+                    5. TABLA DE CODIGOS DE DISTRIBUIDOR
+                       (PRIORIDAD BAJA - IMPLEMENTAR DESPUES)
+================================================================================
+
+NOTA: Esta funcionalidad NO es urgente. El frontend permite crear distribuidores
+sin codigo por ahora. Implementar cuando se necesite controlar el acceso.
+
+Se necesita crear una tabla para validar los codigos de distribuidor:
+
+TABLA: distributor_codes
+| Campo      | Tipo     | Descripcion                          |
+|------------|----------|--------------------------------------|
+| id         | UUID     | ID unico                             |
+| code       | string   | Codigo (CPXX00) - UNIQUE             |
+| isUsed     | boolean  | Ya fue usado para registrarse?       |
+| usedBy     | UUID     | ID del shop que lo uso (nullable)    |
+| createdAt  | datetime | Fecha de creacion                    |
+| expiresAt  | datetime | Fecha de expiracion (opcional)       |
+
+VALIDACIONES REQUERIDAS (cuando se implemente):
+1. El codigo debe existir en la tabla
+2. El codigo no debe estar usado (isUsed = false)
+3. Si tiene expiresAt, no debe estar expirado
+4. Al crear shop con distribuidor, marcar codigo como usado
+
+ENDPOINT SUGERIDO PARA VALIDACION:
+POST /api/distributor-codes/validate
+Body: { "code": "CPAB01" }
+Response: { "valid": true/false, "message": "..." }
+
+
+================================================================================
+                    6. RESUMEN DE CAMBIOS EN BASE DE DATOS
+================================================================================
+
+TABLA USERS - Agregar columnas:
+- birthDate: DATE (nullable)
+- gender: ENUM('female', 'male', 'other') (nullable)
+- barrio: VARCHAR(100) (nullable)
+- hasDogs: BOOLEAN (default false)
+- hasCats: BOOLEAN (default false)
+- hasOtherPets: BOOLEAN (default false)
+
+TABLA USER_PETS - Crear nueva:
+- id: UUID (PK)
+- userId: UUID (FK -> users.id)
+- type: ENUM('dog', 'cat', 'other')
+- name: VARCHAR(100)
+- breed: VARCHAR(100) (nullable)
+- age: VARCHAR(50) (nullable)
+- createdAt: DATETIME
+- updatedAt: DATETIME
+
+TABLA SHOPS - Agregar columnas:
+- category: ENUM('petshop', 'forrajeria', 'veterinaria', 'distribuidor') (nullable)
+- whatsapp: VARCHAR(20) (nullable)
+- notificationEmail: VARCHAR(100) (nullable)
+- distributorCode: VARCHAR(10) (nullable)
+- razonSocial: VARCHAR(200) (nullable)
+- direccionFiscal: VARCHAR(300) (nullable)
+- cuit: VARCHAR(11) (nullable)
+- ivaPosition: ENUM('responsable_inscripto', 'monotributo', 'exento', 'consumidor_final') (nullable)
+- iibb: VARCHAR(50) (nullable)
+- convenioMultilateral: BOOLEAN (default false)
+
+TABLA DISTRIBUTOR_CODES - Crear nueva (ver seccion 5)
+
+
+================================================================================
+                    7. NOTAS IMPORTANTES
+================================================================================
+
+1. RETROCOMPATIBILIDAD:
+   - Todos los campos nuevos son OPCIONALES
+   - Los usuarios/tiendas existentes no se veran afectados
+   - El frontend maneja gracefully si los campos no existen
+
+2. VALIDACIONES EN BACKEND:
+   - birthDate: debe ser fecha valida, menor a hoy
+   - gender: solo valores permitidos
+   - cuit: 11 digitos numericos
+   - distributorCode: formato CPXX00, validar contra tabla
+   - emails: formato valido
+
+3. SEGURIDAD:
+   - Los datos fiscales son sensibles, considerar encriptacion
+   - El CUIT no debe mostrarse completo en respuestas publicas
+   - Los codigos de distribuidor deben ser de un solo uso
+
+4. EMAILS DE NOTIFICACION:
+   - notificationEmail se usara para: suscripciones, novedades, promociones
+   - Si no se proporciona, usar el email principal
+
+================================================================================
+                         FIN DEL DOCUMENTO
+================================================================================

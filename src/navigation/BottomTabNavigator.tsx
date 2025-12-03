@@ -1,18 +1,16 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../screens/HomeScreen';
 import MapScreen from '../screens/MapScreen';
-import CatalogScreen from '../screens/CatalogScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { COLORS } from '../constants/colors';
 
 export type BottomTabParamList = {
   Inicio: undefined;
   Mapa: undefined;
-  Catalogo: undefined;
   Perfil: undefined;
 };
 
@@ -63,15 +61,6 @@ const BottomTabNavigator = () => {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} iconName="map-outline" label="Mapa" />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Catalogo"
-        component={CatalogScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} iconName="grid-outline" label="Catalogo" />
           ),
         }}
       />

@@ -95,7 +95,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
         <Text style={styles.title}>¡Bienvenido a Wallmapu!</Text>
         <Text style={styles.subtitle}>
-          Tu marketplace de confianza para todo lo que tu mascota necesita
+          Todo para tu mascota a un click de distancia.
         </Text>
 
         <View style={styles.form}>
@@ -147,7 +147,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.forgotPassword}>
+          <TouchableOpacity
+            style={styles.forgotPassword}
+            onPress={() => navigation.navigate('ForgotPassword')}
+          >
             <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
 
