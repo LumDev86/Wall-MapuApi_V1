@@ -341,7 +341,13 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
                 <TouchableOpacity
                   key={product.id}
                   style={styles.productCard}
-                  onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
+                  onPress={() => {
+                    if (!product.id) {
+                      Alert.alert('Error', 'Este producto no tiene un identificador válido');
+                      return;
+                    }
+                    navigation.navigate('ProductDetail', { productId: product.id });
+                  }}
                 >
                   <ImageWithFallback
                     uri={product.images?.[0]}

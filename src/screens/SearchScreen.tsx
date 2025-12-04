@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -76,6 +77,10 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ navigation, route }) => {
   };
 
   const handleProductPress = (productId: string) => {
+    if (!productId) {
+      Alert.alert('Error', 'Este producto no tiene un identificador válido');
+      return;
+    }
     navigation.navigate('ProductDetail', { productId });
   };
 

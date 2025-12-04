@@ -135,9 +135,12 @@ const HomeScreen = () => {
           const subData = await subscriptionService.getByShop(shopData.id);
           setMySubscription(subData);
         } catch (e: any) {
-          if (e.response?.status !== 404) {
+          // Backend puede devolver 404 o 500 cuando no hay suscripción
+          const status = e.response?.status;
+          if (status !== 404 && status !== 500) {
             console.log('Error fetching subscription:', e);
           }
+          // Silenciar errores 404 y 500 (no hay suscripción)
           setMySubscription(null);
         }
       } catch (error: any) {
