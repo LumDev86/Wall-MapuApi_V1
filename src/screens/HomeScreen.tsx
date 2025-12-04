@@ -144,7 +144,12 @@ const HomeScreen = () => {
           setMySubscription(null);
         }
       } catch (error: any) {
-        if (error.response?.status === 404) {
+        const status = error.response?.status;
+        if (status === 404) {
+          setHasShop(false);
+        } else if (status === 500) {
+          // Error 500 del backend - probablemente problema con la tienda
+          console.log('⚠️ Backend error al cargar tienda (500) - posiblemente datos corruptos');
           setHasShop(false);
         } else {
           console.error('Error fetching shop:', error);
