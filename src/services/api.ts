@@ -288,11 +288,24 @@ export const productService = {
       });
     }
 
+    console.log('🚀 Creando producto en tienda:', shopId);
+    console.log('📦 Datos del producto:', {
+      name: data.name,
+      priceRetail: data.priceRetail,
+      stock: data.stock,
+      categoryId: data.categoryId,
+      hasImages: data.images && data.images.length > 0
+    });
+
     const response = await api.post<Product>(`/products/shop/${shopId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
+
+    console.log('✅ Respuesta del backend al crear producto:', response.data);
+    console.log('📋 ID del producto creado:', response.data.id);
+
     return response.data;
   },
 

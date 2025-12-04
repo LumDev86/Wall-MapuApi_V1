@@ -37,12 +37,28 @@ const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({ navigation, r
   const fetchProduct = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Cargando producto con ID:', productId);
       const response = await productService.getById(productId);
+      console.log('✅ Producto cargado:', response);
+      console.log('📋 Estructura del producto:', JSON.stringify(response, null, 2));
       setProduct(response);
-    } catch (error) {
-      console.error('Error fetching product:', error);
-      Alert.alert('Error', 'No se pudo cargar el producto');
-      navigation.goBack();
+    } catch (error: any) {
+      console.error('❌ Error fetching product:', error);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
+      console.error('❌ Product ID que causó el error:', productId);
+
+      const errorMessage = error.response?.data?.message || error.message || 'No se pudo cargar el producto';
+      Alert.alert(
+        'Error',
+        `No se pudo cargar el producto.\n\n${errorMessage}\n\nID: ${productId}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }

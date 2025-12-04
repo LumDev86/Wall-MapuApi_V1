@@ -25,6 +25,7 @@ interface MyShopScreenProps {
 const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
   const [shop, setShop] = useState<Shop | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -65,6 +66,9 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
       setProductsLoading(true);
       const response = await productService.getByShop(shopId, { page: 1, limit: 10 });
       setProducts(response.data);
+      setTotalProducts(response.pagination.total);
+      console.log('📊 Total de productos:', response.pagination.total);
+      console.log('📋 Productos cargados:', response.data.length);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -333,7 +337,7 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <Ionicons name="cube-outline" size={32} color={COLORS.primary} />
-              <Text style={styles.statNumber}>{products.length}</Text>
+              <Text style={styles.statNumber}>{totalProducts}</Text>
               <Text style={styles.statLabel}>Productos</Text>
             </View>
             <View style={styles.statCard}>

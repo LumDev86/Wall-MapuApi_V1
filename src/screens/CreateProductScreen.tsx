@@ -193,6 +193,38 @@ const CreateProductScreen: React.FC<CreateProductScreenProps> = ({ navigation, r
 
       const newProduct = await productService.create(shopId, productData);
 
+      console.log('✅ Producto creado exitosamente:', newProduct);
+      console.log('📋 ID del producto:', newProduct.id);
+      console.log('📋 Estructura completa:', JSON.stringify(newProduct, null, 2));
+
+      // El backend puede devolver el id en diferentes campos
+      const productId = newProduct.id || (newProduct as any)._id || (newProduct as any).productId;
+
+      console.log('🔍 Product ID extraído:', productId);
+
+      if (!productId) {
+        console.error('❌ PROBLEMA: El backend no devolvió ningún ID');
+        console.error('📋 Respuesta completa:', newProduct);
+        console.error('📋 Campos disponibles:', Object.keys(newProduct));
+
+        // Si el backend no devuelve ID, volvemos a la pantalla anterior
+        // y el producto aparecerá en el listado cuando se recargue
+        Alert.alert(
+          'Éxito',
+          'Producto creado exitosamente. Verás el producto en el listado de tu tienda.',
+          [
+            {
+              text: 'Ver Mis Productos',
+              onPress: () => {
+                // Volver y recargar la lista
+                navigation.goBack();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       Alert.alert(
         'Éxito',
         'Producto creado exitosamente',
@@ -200,7 +232,8 @@ const CreateProductScreen: React.FC<CreateProductScreenProps> = ({ navigation, r
           {
             text: 'Ver Producto',
             onPress: () => {
-              navigation.replace('ProductDetail', { productId: newProduct.id });
+              console.log('🔍 Navegando a ProductDetail con ID:', productId);
+              navigation.replace('ProductDetail', { productId });
             },
           },
           {
@@ -212,7 +245,9 @@ const CreateProductScreen: React.FC<CreateProductScreenProps> = ({ navigation, r
         ]
       );
     } catch (error: any) {
-      console.error('Error creating product:', error);
+      console.error('❌ Error creating product:', error);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
       const errorMessage = error.response?.data?.message || 'No se pudo crear el producto';
       Alert.alert('Error', errorMessage);
     } finally {

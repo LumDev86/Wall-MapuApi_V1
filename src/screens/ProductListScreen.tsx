@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -50,16 +51,23 @@ const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route
         ...(categoryId && { categoryId }),
       };
 
+      console.log('🔍 Cargando productos con params:', params);
+      console.log('🏪 ShopId:', route.params?.shopId);
+
       let response;
       if (route.params?.shopId) {
         response = await productService.getByShop(route.params.shopId, params);
+        console.log('✅ Productos de la tienda cargados:', response.data.length);
       } else {
         response = await productService.getAll(params);
+        console.log('✅ Productos generales cargados:', response.data.length);
       }
 
+      console.log('📋 Productos:', JSON.stringify(response.data, null, 2));
       setProducts(response.data);
-    } catch (error) {
-      console.error('Error fetching products:', error);
+    } catch (error: any) {
+      console.error('❌ Error fetching products:', error);
+      console.error('❌ Error response:', error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -173,6 +181,20 @@ interface ProductGridCardProps {
 }
 
 const ProductGridCard: React.FC<ProductGridCardProps> = ({ product, navigation }) => {
+  const handlePress = () => {
+    console.log('🔍 Producto seleccionado:', product.name);
+    console.log('📋 ID del producto:', product.id);
+    console.log('📋 Estructura del producto:', JSON.stringify(product, null, 2));
+
+    if (!product.id) {
+      console.error('❌ El producto no tiene ID:', product);
+      Alert.alert('Error', 'Este producto no tiene un identificador válido');
+      return;
+    }
+
+    navigation.navigate('ProductDetail', { productId: product.id });
+  };
+
   return (
     <View style={styles.productCard}>
       <View style={styles.productImageContainer}>
@@ -192,7 +214,7 @@ const ProductGridCard: React.FC<ProductGridCardProps> = ({ product, navigation }
       <Text style={styles.productStock}>Disponible</Text>
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
+        onPress={handlePress}
       >
         <Ionicons name="add" size={24} color="#fff" />
       </TouchableOpacity>
