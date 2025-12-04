@@ -146,13 +146,13 @@ const HomeScreen = () => {
       } catch (error: any) {
         const status = error.response?.status;
         if (status === 404) {
-          setHasShop(false);
-        } else if (status === 500) {
-          // Error 500 del backend - probablemente problema con la tienda
-          console.log('⚠️ Backend error al cargar tienda (500) - posiblemente datos corruptos');
+          // Solo 404 significa "no hay tienda"
           setHasShop(false);
         } else {
+          // Otros errores (incluido 500) son problemas del backend
+          // NO asumir que no hay tienda
           console.error('Error fetching shop:', error);
+          console.error('⚠️ Error del backend al cargar tienda - la tienda podría existir pero el servidor falló');
         }
       }
     } catch (error) {
