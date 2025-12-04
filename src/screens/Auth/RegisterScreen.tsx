@@ -287,12 +287,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       };
 
       // Datos para tiendas (ubicación)
+      // NOTA: El backend NO acepta latitude/longitude en el registro
+      // Las coordenadas se obtienen automáticamente en el backend mediante geocoding
       if (role !== 'client') {
         registrationData.province = province || undefined;
         registrationData.city = city || undefined;
         registrationData.address = address || undefined;
-        registrationData.latitude = latitude;
-        registrationData.longitude = longitude;
       }
 
       const result = await register(registrationData);

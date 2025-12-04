@@ -405,29 +405,16 @@ export const shopService = {
     formData.append('city', data.city);
     formData.append('type', data.type);
 
+    // NOTA: El backend NO acepta latitude/longitude
+    // El backend hace su propio geocoding basándose en address + city + province
+    // Las coordenadas se obtienen automáticamente en el backend
+    console.log('Backend will geocode from address:', data.address, data.city, data.province);
+
     // Campos opcionales básicos
     if (data.description) formData.append('description', data.description);
-    if (data.category) formData.append('category', data.category);
     if (data.phone) formData.append('phone', data.phone);
-    if (data.whatsapp) formData.append('whatsapp', data.whatsapp);
     if (data.email) formData.append('email', data.email);
-    if (data.notificationEmail) formData.append('notificationEmail', data.notificationEmail);
     if (data.website) formData.append('website', data.website);
-    if (data.latitude) formData.append('latitude', data.latitude.toString());
-    if (data.longitude) formData.append('longitude', data.longitude.toString());
-
-    // Código de distribuidor
-    if (data.distributorCode) formData.append('distributorCode', data.distributorCode);
-
-    // Datos fiscales
-    if (data.razonSocial) formData.append('razonSocial', data.razonSocial);
-    if (data.direccionFiscal) formData.append('direccionFiscal', data.direccionFiscal);
-    if (data.cuit) formData.append('cuit', data.cuit);
-    if (data.ivaPosition) formData.append('ivaPosition', data.ivaPosition);
-    if (data.iibb) formData.append('iibb', data.iibb);
-    if (data.convenioMultilateral !== undefined) {
-      formData.append('convenioMultilateral', data.convenioMultilateral.toString());
-    }
 
     // Horarios (JSON string)
     if (data.schedule) {
@@ -450,6 +437,9 @@ export const shopService = {
         name: data.banner.name || 'banner.jpg',
       } as any);
     }
+
+    console.log('FormData prepared for /shops endpoint');
+    console.log('API URL:', API_URL);
 
     const response = await api.post<Shop>('/shops', formData, {
       headers: {
@@ -562,10 +552,10 @@ export const subscriptionService = {
 
   /**
    * Cancelar suscripción
-   * DELETE /api/subscriptions/shop/:shopId/cancel
+   * DELETE /api/subscriptions/:id
    */
-  cancel: async (shopId: string): Promise<{ message: string }> => {
-    const response = await api.delete(`/subscriptions/shop/${shopId}/cancel`);
+  cancel: async (subscriptionId: string): Promise<{ message: string }> => {
+    const response = await api.delete(`/subscriptions/${subscriptionId}`);
     return response.data;
   },
 

@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { shopService } from '../services/api';
 import { CreateShopRequest, ImageFile, Schedule } from '../types/product.types';
 import { COLORS } from '../constants/colors';
+import LocationPicker from '../components/LocationPicker';
 
 interface CreateShopScreenProps {
   navigation: any;
@@ -74,6 +75,8 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
   const [address, setAddress] = useState('');
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
+  const [latitude, setLatitude] = useState<number | undefined>();
+  const [longitude, setLongitude] = useState<number | undefined>();
 
   // Contacto
   const [phone, setPhone] = useState('');
@@ -147,7 +150,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
     }
 
     if (!address.trim()) {
-      Alert.alert('Error', 'La dirección es requerida');
+      Alert.alert('Error', 'La dirección es requerida. Por favor selecciona una ubicación en el mapa.');
       return false;
     }
 
@@ -194,7 +197,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: type === 'logo' ? [1, 1] : [16, 9],
         quality: 0.8,
@@ -277,6 +280,8 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
         address: address.trim(),
         province: province.trim(),
         city: city.trim(),
+        latitude: latitude,
+        longitude: longitude,
         phone: phone.trim() || undefined,
         whatsapp: whatsapp.trim() || undefined,
         email: email.trim() || undefined,
@@ -296,6 +301,20 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
         distributorCode: shopCategory === 'distribuidor' ? distributorCode.toUpperCase().trim() : undefined,
       };
 
+      console.log('Creating shop with data:', {
+        ...shopData,
+        logo: logo ? 'present' : 'absent',
+        banner: banner ? 'present' : 'absent',
+      });
+
+      // DEBUG: Log de coordenadas específicamente
+      console.log('Coordinates being sent:');
+      console.log('- Latitude:', shopData.latitude, '(type:', typeof shopData.latitude, ')');
+      console.log('- Longitude:', shopData.longitude, '(type:', typeof shopData.longitude, ')');
+      console.log('- Address:', shopData.address);
+      console.log('- City:', shopData.city);
+      console.log('- Province:', shopData.province);
+
       const newShop = await shopService.create(shopData);
 
       Alert.alert(
@@ -310,10 +329,26 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
       );
     } catch (error: any) {
       console.error('Error creating shop:', error);
-      const errorMessage =
-        error?.response?.data?.message ||
-        'No se pudo crear la tienda. Por favor intenta nuevamente.';
-      Alert.alert('Error', errorMessage);
+      console.error('Error response:', error?.response?.data);
+      console.error('Error status:', error?.response?.status);
+
+      let errorMessage = 'No se pudo crear la tienda. Por favor intenta nuevamente.';
+
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.response?.data?.errors) {
+        // Si el backend devuelve un array de errores
+        const errors = error.response.data.errors;
+        if (Array.isArray(errors)) {
+          errorMessage = errors.map((e: any) => e.message || e).join('\n');
+        } else {
+          errorMessage = JSON.stringify(errors);
+        }
+      }
+
+      Alert.alert('Error al crear tienda', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -342,134 +377,59 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Información Básica</Text>
 
-            {/* Shop Category */}
+            {/* Retailer/Wholesaler Type */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Categoría del comercio <Text style={styles.required}>*</Text>
+                Tipo de venta <Text style={styles.required}>*</Text>
               </Text>
-              <View style={styles.categoryContainer}>
-                {SHOP_CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.value}
+              <View style={styles.typeButtonsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    type === 'retailer' && styles.typeButtonActive,
+                  ]}
+                  onPress={() => setType('retailer')}
+                  disabled={loading}
+                >
+                  <Ionicons
+                    name="basket-outline"
+                    size={24}
+                    color={type === 'retailer' ? COLORS.white : COLORS.primary}
+                  />
+                  <Text
                     style={[
-                      styles.categoryCard,
-                      shopCategory === cat.value && styles.categoryCardActive,
+                      styles.typeButtonText,
+                      type === 'retailer' && styles.typeButtonTextActive,
                     ]}
-                    onPress={() => {
-                      setShopCategory(cat.value);
-                      if (cat.value === 'distribuidor') {
-                        setType('wholesaler');
-                      }
-                    }}
-                    disabled={loading}
                   >
-                    <Ionicons
-                      name={cat.icon as any}
-                      size={24}
-                      color={shopCategory === cat.value ? COLORS.white : COLORS.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.categoryCardLabel,
-                        shopCategory === cat.value && styles.categoryCardLabelActive,
-                      ]}
-                    >
-                      {cat.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.categoryCardDescription,
-                        shopCategory === cat.value && styles.categoryCardDescriptionActive,
-                      ]}
-                      numberOfLines={2}
-                    >
-                      {cat.description}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                    Minorista
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    type === 'wholesaler' && styles.typeButtonActive,
+                  ]}
+                  onPress={() => setType('wholesaler')}
+                  disabled={loading}
+                >
+                  <Ionicons
+                    name="business-outline"
+                    size={24}
+                    color={type === 'wholesaler' ? COLORS.white : COLORS.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.typeButtonText,
+                      type === 'wholesaler' && styles.typeButtonTextActive,
+                    ]}
+                  >
+                    Mayorista
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
-
-            {/* Distributor Code (only for distributors) */}
-            {shopCategory === 'distribuidor' && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Código de autorización (opcional)
-                </Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="key-outline" size={20} color="#999" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ej: CPAB01"
-                    placeholderTextColor={COLORS.placeholder}
-                    value={distributorCode}
-                    onChangeText={(text) => setDistributorCode(text.toUpperCase())}
-                    autoCapitalize="characters"
-                    maxLength={6}
-                    editable={!loading}
-                  />
-                </View>
-                <Text style={styles.helperText}>
-                  Si tienes un código de distribuidor, ingrésalo aquí. Formato: CP + 2 letras + 2 números (ej: CPAB01)
-                </Text>
-              </View>
-            )}
-
-            {/* Retailer/Wholesaler Type (only for non-distributors) */}
-            {shopCategory !== 'distribuidor' && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Tipo de venta <Text style={styles.required}>*</Text>
-                </Text>
-                <View style={styles.typeButtonsContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      type === 'retailer' && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setType('retailer')}
-                    disabled={loading}
-                  >
-                    <Ionicons
-                      name="basket-outline"
-                      size={24}
-                      color={type === 'retailer' ? COLORS.white : COLORS.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.typeButtonText,
-                        type === 'retailer' && styles.typeButtonTextActive,
-                      ]}
-                    >
-                      Minorista
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      type === 'wholesaler' && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setType('wholesaler')}
-                    disabled={loading}
-                  >
-                    <Ionicons
-                      name="business-outline"
-                      size={24}
-                      color={type === 'wholesaler' ? COLORS.white : COLORS.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.typeButtonText,
-                        type === 'wholesaler' && styles.typeButtonTextActive,
-                      ]}
-                    >
-                      Mayorista
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
 
             {/* Name */}
             <View style={styles.inputGroup}>
@@ -512,58 +472,66 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Ubicación</Text>
 
-            {/* Address */}
+            {/* Location Picker with Map */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Dirección <Text style={styles.required}>*</Text>
+                Ubicación de tu tienda <Text style={styles.required}>*</Text>
               </Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="location-outline" size={20} color="#999" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Calle, número, barrio"
-                  placeholderTextColor={COLORS.placeholder}
-                  value={address}
-                  onChangeText={setAddress}
-                  editable={!loading}
-                />
-              </View>
-            </View>
+              <LocationPicker
+                onLocationSelected={(location) => {
+                  console.log('Location selected:', location);
 
-            {/* Province */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Provincia <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="map-outline" size={20} color="#999" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ej: Buenos Aires"
-                  placeholderTextColor={COLORS.placeholder}
-                  value={province}
-                  onChangeText={setProvince}
-                  editable={!loading}
-                />
-              </View>
-            </View>
+                  // Extraer provincia y ciudad de la dirección
+                  // El formato típico es: "Calle Número, Ciudad, Provincia, País"
+                  const parts = location.address.split(',').map(p => p.trim()).filter(p => p);
 
-            {/* City */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                Ciudad <Text style={styles.required}>*</Text>
+                  console.log('Address parts:', parts);
+
+                  let extractedCity = '';
+                  let extractedProvince = '';
+                  let streetAddress = '';
+
+                  // Intentar extraer ciudad y provincia
+                  // Normalmente: [Calle, Ciudad, Provincia, País]
+                  if (parts.length >= 4) {
+                    streetAddress = parts[0]; // Solo la calle
+                    extractedCity = parts[1]; // Ciudad
+                    extractedProvince = parts[2]; // Provincia
+                  } else if (parts.length === 3) {
+                    streetAddress = parts[0];
+                    extractedCity = parts[1]; // Ciudad
+                    extractedProvince = parts[2]; // Provincia
+                  } else if (parts.length === 2) {
+                    streetAddress = parts[0];
+                    extractedCity = parts[0];
+                    extractedProvince = parts[1];
+                  } else if (parts.length === 1) {
+                    streetAddress = parts[0];
+                    extractedCity = parts[0];
+                    extractedProvince = 'Entre Ríos'; // Valor por defecto
+                  }
+
+                  console.log('Extracted data:');
+                  console.log('- Street:', streetAddress);
+                  console.log('- City:', extractedCity);
+                  console.log('- Province:', extractedProvince);
+
+                  // Usar solo la calle como address (sin ciudad ni provincia)
+                  setAddress(streetAddress);
+                  setCity(extractedCity);
+                  setProvince(extractedProvince);
+                  setLatitude(location.latitude);
+                  setLongitude(location.longitude);
+                }}
+                initialLocation={
+                  latitude && longitude
+                    ? { address, latitude, longitude }
+                    : undefined
+                }
+              />
+              <Text style={styles.helperText}>
+                Busca tu tienda en el mapa para obtener la dirección exacta. El backend calculará automáticamente las coordenadas.
               </Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="business-outline" size={20} color="#999" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ej: Capital Federal"
-                  placeholderTextColor={COLORS.placeholder}
-                  value={city}
-                  onChangeText={setCity}
-                  editable={!loading}
-                />
-              </View>
             </View>
           </View>
 
@@ -588,7 +556,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
-            {/* WhatsApp */}
+            {/* WhatsApp - TEMPORALMENTE DESHABILITADO (backend no lo acepta)
             <View style={styles.inputGroup}>
               <Text style={styles.label}>WhatsApp</Text>
               <View style={styles.inputContainer}>
@@ -607,6 +575,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
                 Este número se mostrará a los clientes para contacto directo
               </Text>
             </View>
+            */}
 
             {/* Email */}
             <View style={styles.inputGroup}>
@@ -626,7 +595,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Notification Email */}
+            {/* Notification Email - TEMPORALMENTE DESHABILITADO (backend no lo acepta)
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email para notificaciones</Text>
               <View style={styles.inputContainer}>
@@ -646,6 +615,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
                 Recibirás información sobre tu suscripción, novedades y promociones
               </Text>
             </View>
+            */}
 
             {/* Website */}
             <View style={styles.inputGroup}>
@@ -666,7 +636,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Fiscal Data Section */}
+          {/* Fiscal Data Section - TEMPORALMENTE DESHABILITADO (backend no acepta estos campos)
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.sectionHeaderToggle}
@@ -688,7 +658,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
 
             {showFiscalData && (
               <View style={styles.fiscalDataContainer}>
-                {/* Razón Social */}
+                Razón Social
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Razón Social</Text>
                   <View style={styles.inputContainer}>
@@ -704,7 +674,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* Dirección Fiscal */}
+                Dirección Fiscal
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Dirección Fiscal</Text>
                   <View style={styles.inputContainer}>
@@ -720,7 +690,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* CUIT */}
+                CUIT
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>CUIT</Text>
                   <View style={styles.inputContainer}>
@@ -738,7 +708,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* Posición IVA */}
+                Posición IVA
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Posición frente al IVA</Text>
                   <View style={styles.ivaContainer}>
@@ -765,7 +735,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* IIBB */}
+                IIBB
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Ingresos Brutos</Text>
                   <View style={styles.inputContainer}>
@@ -781,7 +751,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* Convenio Multilateral */}
+                Convenio Multilateral
                 <TouchableOpacity
                   style={styles.checkboxContainer}
                   onPress={() => setConvenioMultilateral(!convenioMultilateral)}
@@ -795,6 +765,7 @@ const CreateShopScreen: React.FC<CreateShopScreenProps> = ({ navigation }) => {
               </View>
             )}
           </View>
+          */}
 
           {/* Images Section */}
           <View style={styles.section}>

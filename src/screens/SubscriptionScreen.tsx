@@ -75,13 +75,18 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
 
       // Obtener suscripción actual si existe
       try {
+        console.log('Fetching subscription for shop ID:', shopData.id);
         const subscriptionData = await subscriptionService.getByShop(shopData.id);
+        console.log('Subscription fetched successfully:', subscriptionData);
         setSubscription(subscriptionData);
       } catch (error: any) {
+        console.error('Error fetching subscription:', error);
+        console.error('Error status:', error.response?.status);
+        console.error('Error data:', error.response?.data);
+
         // Si no hay suscripción (404), no es un error
         if (error.response?.status !== 404) {
-          console.log('Error obteniendo suscripción:', error.response?.status);
-          // No lanzar error, simplemente no hay suscripción
+          console.warn('Unexpected error fetching subscription, status:', error.response?.status);
         }
         setSubscription(null);
       }
@@ -146,12 +151,86 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
               }
             } catch (error: any) {
               console.error('Error creating subscription:', error);
+              console.error('Error response data:', error.response?.data);
               const status = error.response?.status;
               const message = error.response?.data?.message;
 
               let errorMsg = 'No se pudo crear la suscripción.';
 
+              // Error 500 - Problema del servidor (Mercado Pago)
+              if (status === 500) {
+                const errorDetails = error.response?.data?.error || '';
+                if (errorDetails.includes('cardholderIdentification') ||
+                    errorDetails.includes('Mercado Pago') ||
+                    errorDetails.includes('MercadoPago')) {
+                  Alert.alert(
+                    'Error de configuración',
+                    'Hay un problema con la configuración de Mercado Pago en el servidor. Por favor contacta al soporte técnico.\n\nError: ' + errorDetails,
+                    [{ text: 'OK' }]
+                  );
+                  return;
+                }
+                errorMsg = 'Error del servidor. Contacta al soporte.';
+              }
+
               if (status === 400) {
+                const msgLower = (message || '').toLowerCase();
+
+                // Si el error indica que ya existe una suscripción pendiente
+                if (msgLower.includes('pendiente') || msgLower.includes('pending') ||
+                    msgLower.includes('ya tiene') || msgLower.includes('already has')) {
+
+                  // Primero obtener la suscripción actual para tener su ID
+                  fetchData().then(async () => {
+                    // Intentar obtener la suscripción directamente del backend
+                    try {
+                      const pendingSubscription = await subscriptionService.getByShop(shop.id);
+
+                      if (!pendingSubscription) {
+                        Alert.alert('Error', 'No se pudo encontrar la suscripción pendiente');
+                        return;
+                      }
+
+                      Alert.alert(
+                        'Suscripción pendiente',
+                        'Ya tienes una suscripción pendiente. ¿Deseas cancelarla para crear una nueva?',
+                        [
+                          { text: 'No', style: 'cancel' },
+                          {
+                            text: 'Sí, cancelar pendiente',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                console.log('Canceling pending subscription with ID:', pendingSubscription.id);
+                                await subscriptionService.cancel(pendingSubscription.id);
+                                Alert.alert(
+                                  'Suscripción cancelada',
+                                  'La suscripción pendiente ha sido cancelada. Ahora puedes crear una nueva.',
+                                  [{ text: 'OK', onPress: () => fetchData() }]
+                                );
+                              } catch (cancelError: any) {
+                                console.error('Error canceling pending subscription:', cancelError);
+                                console.error('Error response:', cancelError.response?.data);
+                                Alert.alert(
+                                  'Error',
+                                  cancelError.response?.data?.message || 'No se pudo cancelar la suscripción pendiente'
+                                );
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    } catch (fetchError: any) {
+                      console.error('Error fetching pending subscription:', fetchError);
+                      Alert.alert(
+                        'Error',
+                        'No se pudo obtener la información de la suscripción pendiente. Por favor, ve a la pantalla de Suscripción para cancelarla manualmente.'
+                      );
+                    }
+                  });
+                  return;
+                }
+
                 errorMsg = message || 'La tienda ya tiene una suscripción activa o se excedió el límite de intentos.';
               } else if (status === 403) {
                 errorMsg = 'No tienes permiso para crear una suscripción para esta tienda.';
@@ -202,11 +281,20 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
   };
 
   const handleCancelSubscription = () => {
-    if (!shop) return;
+    if (!subscription) {
+      Alert.alert('Error', 'No se encontró la suscripción a cancelar');
+      return;
+    }
+
+    const isPending = subscription.status === 'pending';
+    const title = isPending ? 'Cancelar Suscripción Pendiente' : 'Cancelar Suscripción';
+    const message = isPending
+      ? '¿Estás seguro que deseas cancelar la suscripción pendiente? Podrás crear una nueva después.'
+      : '¿Estás seguro que deseas cancelar tu suscripción? Perderás acceso a los beneficios al finalizar el período actual.';
 
     Alert.alert(
-      'Cancelar Suscripción',
-      '¿Estás seguro que deseas cancelar tu suscripción? Perderás acceso a los beneficios al finalizar el período actual.',
+      title,
+      message,
       [
         { text: 'No', style: 'cancel' },
         {
@@ -215,11 +303,13 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
           onPress: async () => {
             try {
               setLoading(true);
-              await subscriptionService.cancel(shop.id);
+              console.log('Canceling subscription with ID:', subscription.id);
+              await subscriptionService.cancel(subscription.id);
               Alert.alert('Suscripción cancelada', 'Tu suscripción ha sido cancelada exitosamente');
               await fetchData();
             } catch (error: any) {
               console.error('Error canceling subscription:', error);
+              console.error('Error response:', error.response?.data);
               Alert.alert(
                 'Error',
                 error.response?.data?.message || 'No se pudo cancelar la suscripción'
@@ -407,20 +497,31 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
               {/* Action Buttons */}
               <View style={styles.actionButtons}>
                 {subscription.status === 'pending' && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.primaryButton]}
-                    onPress={handleCheckPaymentStatus}
-                    disabled={subscribing}
-                  >
-                    {subscribing ? (
-                      <ActivityIndicator size="small" color={COLORS.white} />
-                    ) : (
-                      <>
-                        <Ionicons name="refresh-outline" size={20} color={COLORS.white} />
-                        <Text style={styles.primaryButtonText}>Verificar Pago</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.primaryButton]}
+                      onPress={handleCheckPaymentStatus}
+                      disabled={subscribing}
+                    >
+                      {subscribing ? (
+                        <ActivityIndicator size="small" color={COLORS.white} />
+                      ) : (
+                        <>
+                          <Ionicons name="refresh-outline" size={20} color={COLORS.white} />
+                          <Text style={styles.primaryButtonText}>Verificar Pago</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.dangerButton]}
+                      onPress={handleCancelSubscription}
+                      disabled={subscribing}
+                    >
+                      <Ionicons name="close-circle-outline" size={20} color={COLORS.error} />
+                      <Text style={styles.dangerButtonText}>Cancelar Pendiente</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
 
                 {(subscription.status === 'failed' && subscription.canRetryPayment) && (
@@ -500,6 +601,32 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
             <Text style={styles.sectionSubtitle}>
               Selecciona el plan que mejor se adapte a tu negocio
             </Text>
+
+            {/* Botón de ayuda para suscripciones pendientes */}
+            <View style={styles.helpContainer}>
+              <TouchableOpacity
+                style={styles.helpButton}
+                onPress={async () => {
+                  Alert.alert(
+                    '¿Tienes una suscripción pendiente?',
+                    'Si el backend dice que ya tienes una suscripción pero no la ves aquí, intenta actualizando la página deslizando hacia abajo. Si el problema persiste, contacta al soporte.',
+                    [
+                      { text: 'Cancelar', style: 'cancel' },
+                      {
+                        text: 'Refrescar ahora',
+                        onPress: () => {
+                          setRefreshing(true);
+                          fetchData().finally(() => setRefreshing(false));
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="help-circle-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.helpButtonText}>¿Problemas con suscripción pendiente?</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Plan Cards */}
             <View style={styles.plansContainer}>
@@ -951,6 +1078,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.white,
+  },
+  helpContainer: {
+    marginVertical: 16,
+    paddingHorizontal: 16,
+  },
+  helpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    gap: 8,
+  },
+  helpButtonText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
   },
 });
 
