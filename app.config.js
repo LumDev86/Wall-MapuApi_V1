@@ -1,5 +1,6 @@
-module.exports = {
-  expo: {
+module.exports = ({ config }) => {
+  return {
+    ...config,
     name: "Wallmapu",
     slug: "wallmapu",
     version: "1.0.0",
@@ -14,6 +15,11 @@ module.exports = {
     assetBundlePatterns: [
       "**/*"
     ],
+    extra: {
+      eas: {
+        projectId: "wallmapu"
+      }
+    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.wallmapu.app",
@@ -53,5 +59,5 @@ module.exports = {
         }
       ]
     ]
-  }
+  };
 };
