@@ -28,6 +28,11 @@ import {
   SubscriptionStats,
   PaymentStatusResponse,
 } from '../types/subscription.types';
+import {
+  uploadImage,
+  uploadMultipleImages,
+  generateTempId,
+} from './supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -262,44 +267,65 @@ export const productService = {
   /**
    * Crear producto con imágenes (solo dueño del shop)
    * POST /api/products/shop/:shopId
+   *
+   * Las imágenes se suben primero a Supabase Storage y luego se envían las URLs al backend
    */
   create: async (shopId: string, data: CreateProductRequest): Promise<Product> => {
-    const formData = new FormData();
-
-    // Campos básicos
-    formData.append('name', data.name);
-    if (data.description) formData.append('description', data.description);
-    formData.append('priceRetail', data.priceRetail.toString());
-    if (data.priceWholesale) formData.append('priceWholesale', data.priceWholesale.toString());
-    formData.append('stock', data.stock.toString());
-    if (data.sku) formData.append('sku', data.sku);
-    if (data.barcode) formData.append('barcode', data.barcode);
-    if (data.brand) formData.append('brand', data.brand);
-    formData.append('categoryId', data.categoryId);
-
-    // Imágenes
-    if (data.images && data.images.length > 0) {
-      data.images.forEach((image, index) => {
-        formData.append('images', {
-          uri: image.uri,
-          type: image.type || 'image/jpeg',
-          name: image.name || `product_${index}.jpg`,
-        } as any);
-      });
-    }
+    // Generate a temporary product ID for organizing images before creation
+    const tempProductId = generateTempId();
 
     console.log('🚀 Creando producto en tienda:', shopId);
+    console.log('📦 Temp product ID for images:', tempProductId);
+
+    // Upload images to Supabase Storage first
+    let imageUrls: string[] = [];
+
+    try {
+      if (data.images && data.images.length > 0) {
+        console.log(`📸 Uploading ${data.images.length} images to Supabase...`);
+        imageUrls = await uploadMultipleImages(
+          data.images,
+          'product',
+          { shopId, productId: tempProductId }
+        );
+        console.log('✅ Images uploaded:', imageUrls);
+      }
+    } catch (uploadError) {
+      console.error('Error uploading images to Supabase:', uploadError);
+      throw new Error('Error al subir las imágenes. Por favor intenta nuevamente.');
+    }
+
+    // Prepare request body with image URLs
+    const requestBody: Record<string, any> = {
+      name: data.name,
+      priceRetail: data.priceRetail,
+      stock: data.stock,
+      categoryId: data.categoryId,
+    };
+
+    // Optional fields
+    if (data.description) requestBody.description = data.description;
+    if (data.priceWholesale) requestBody.priceWholesale = data.priceWholesale;
+    if (data.sku) requestBody.sku = data.sku;
+    if (data.barcode) requestBody.barcode = data.barcode;
+    if (data.brand) requestBody.brand = data.brand;
+
+    // Image URLs from Supabase
+    if (imageUrls.length > 0) {
+      requestBody.images = imageUrls;
+    }
+
     console.log('📦 Datos del producto:', {
       name: data.name,
       priceRetail: data.priceRetail,
       stock: data.stock,
       categoryId: data.categoryId,
-      hasImages: data.images && data.images.length > 0
+      imagesCount: imageUrls.length,
     });
 
-    const response = await api.post<Product>(`/products/shop/${shopId}`, formData, {
+    const response = await api.post<Product>(`/products/shop/${shopId}`, requestBody, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/json',
       },
     });
 
@@ -312,37 +338,52 @@ export const productService = {
   /**
    * Actualizar producto (solo dueño del shop)
    * PATCH /api/products/:id
+   *
+   * Las imágenes nuevas se suben a Supabase Storage y se envían las URLs al backend
    */
-  update: async (id: string, data: UpdateProductRequest): Promise<Product> => {
-    const formData = new FormData();
+  update: async (id: string, data: UpdateProductRequest, shopId?: string): Promise<Product> => {
+    // Upload new images to Supabase Storage if provided
+    let imageUrls: string[] = [];
 
-    // Solo agregar campos que fueron modificados
-    if (data.name) formData.append('name', data.name);
-    if (data.description) formData.append('description', data.description);
-    if (data.priceRetail) formData.append('priceRetail', data.priceRetail.toString());
-    if (data.priceWholesale) formData.append('priceWholesale', data.priceWholesale.toString());
-    if (data.stock !== undefined) formData.append('stock', data.stock.toString());
-    if (data.sku) formData.append('sku', data.sku);
-    if (data.barcode) formData.append('barcode', data.barcode);
-    if (data.brand) formData.append('brand', data.brand);
-    if (data.categoryId) formData.append('categoryId', data.categoryId);
-
-    // Nuevas imágenes
-    if (data.images && data.images.length > 0) {
-      data.images.forEach((image, index) => {
-        formData.append('images', {
-          uri: image.uri,
-          type: image.type || 'image/jpeg',
-          name: image.name || `product_${index}.jpg`,
-        } as any);
-      });
+    try {
+      if (data.images && data.images.length > 0) {
+        console.log(`📸 Uploading ${data.images.length} new images to Supabase...`);
+        imageUrls = await uploadMultipleImages(
+          data.images,
+          'product',
+          { shopId: shopId || 'unknown', productId: id }
+        );
+        console.log('✅ Images uploaded:', imageUrls);
+      }
+    } catch (uploadError) {
+      console.error('Error uploading images to Supabase:', uploadError);
+      throw new Error('Error al subir las imágenes. Por favor intenta nuevamente.');
     }
 
-    const response = await api.patch<Product>(`/products/${id}`, formData, {
+    // Prepare request body with only modified fields
+    const requestBody: Record<string, any> = {};
+
+    if (data.name) requestBody.name = data.name;
+    if (data.description) requestBody.description = data.description;
+    if (data.priceRetail) requestBody.priceRetail = data.priceRetail;
+    if (data.priceWholesale) requestBody.priceWholesale = data.priceWholesale;
+    if (data.stock !== undefined) requestBody.stock = data.stock;
+    if (data.sku) requestBody.sku = data.sku;
+    if (data.barcode) requestBody.barcode = data.barcode;
+    if (data.brand) requestBody.brand = data.brand;
+    if (data.categoryId) requestBody.categoryId = data.categoryId;
+
+    // Image URLs from Supabase (these are new images to add)
+    if (imageUrls.length > 0) {
+      requestBody.images = imageUrls;
+    }
+
+    const response = await api.patch<Product>(`/products/${id}`, requestBody, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/json',
       },
     });
+
     return response.data;
   },
 
@@ -391,8 +432,9 @@ export const shopService = {
       limit?: number;
     }
   ): Promise<Shop> => {
-    const response = await api.get<Shop>(`/shops/${id}`, { params });
-    return response.data;
+    const response = await api.get<{ shop: Shop; products: any[]; pagination: any }>(`/shops/${id}`, { params });
+    // El backend devuelve { shop: {...}, products: [...], pagination: {...} }
+    return response.data.shop;
   },
 
   /**
@@ -407,108 +449,130 @@ export const shopService = {
   /**
    * Registrar un nuevo local
    * POST /api/shops
+   *
+   * Las imágenes se suben primero a Supabase Storage y luego se envían las URLs al backend
    */
   create: async (data: CreateShopRequest): Promise<Shop> => {
-    const formData = new FormData();
+    // Generate a temporary ID for organizing images before shop creation
+    const tempShopId = generateTempId();
 
-    // Campos básicos requeridos
-    formData.append('name', data.name);
-    formData.append('address', data.address);
-    formData.append('province', data.province);
-    formData.append('city', data.city);
-    formData.append('type', data.type);
+    console.log('Creating shop with temp ID for images:', tempShopId);
 
-    // NOTA: El backend NO acepta latitude/longitude
-    // El backend hace su propio geocoding basándose en address + city + province
-    // Las coordenadas se obtienen automáticamente en el backend
-    console.log('Backend will geocode from address:', data.address, data.city, data.province);
+    // Upload images to Supabase Storage first
+    let logoUrl: string | undefined;
+    let bannerUrl: string | undefined;
 
-    // Campos opcionales básicos
-    if (data.description) formData.append('description', data.description);
-    if (data.phone) formData.append('phone', data.phone);
-    if (data.email) formData.append('email', data.email);
-    if (data.website) formData.append('website', data.website);
+    try {
+      if (data.logo) {
+        console.log('Uploading shop logo to Supabase...');
+        logoUrl = await uploadImage(data.logo.uri, 'shop-logo', { shopId: tempShopId });
+        console.log('Logo uploaded:', logoUrl);
+      }
 
-    // Horarios (JSON string)
-    if (data.schedule) {
-      formData.append('schedule', JSON.stringify(data.schedule));
+      if (data.banner) {
+        console.log('Uploading shop banner to Supabase...');
+        bannerUrl = await uploadImage(data.banner.uri, 'shop-banner', { shopId: tempShopId });
+        console.log('Banner uploaded:', bannerUrl);
+      }
+    } catch (uploadError) {
+      console.error('Error uploading images to Supabase:', uploadError);
+      throw new Error('Error al subir las imágenes. Por favor intenta nuevamente.');
     }
 
-    // Imágenes
-    if (data.logo) {
-      formData.append('logo', {
-        uri: data.logo.uri,
-        type: data.logo.type || 'image/jpeg',
-        name: data.logo.name || 'logo.jpg',
-      } as any);
-    }
+    // Prepare request body with image URLs
+    // Note: Backend only accepts specific fields - category, ivaPosition, convenioMultilateral are NOT accepted
+    const requestBody: Record<string, any> = {
+      name: data.name,
+      address: data.address,
+      province: data.province,
+      city: data.city,
+      type: data.type,
+    };
 
-    if (data.banner) {
-      formData.append('banner', {
-        uri: data.banner.uri,
-        type: data.banner.type || 'image/jpeg',
-        name: data.banner.name || 'banner.jpg',
-      } as any);
-    }
+    // Coordinates - required by backend
+    if (data.latitude !== undefined) requestBody.latitude = data.latitude;
+    if (data.longitude !== undefined) requestBody.longitude = data.longitude;
 
-    console.log('FormData prepared for /shops endpoint');
-    console.log('API URL:', API_URL);
+    // Optional fields accepted by backend
+    if (data.description) requestBody.description = data.description;
+    if (data.phone) requestBody.phone = data.phone;
+    if (data.email) requestBody.email = data.email;
+    if (data.website) requestBody.website = data.website;
+    if (data.schedule) requestBody.schedule = data.schedule;
 
-    const response = await api.post<Shop>('/shops', formData, {
+    // Image URLs from Supabase
+    if (logoUrl) requestBody.logo = logoUrl;
+    if (bannerUrl) requestBody.banner = bannerUrl;
+
+    console.log('Sending shop data to backend:', {
+      ...requestBody,
+      logo: logoUrl ? 'URL present' : 'absent',
+      banner: bannerUrl ? 'URL present' : 'absent',
+    });
+
+    const response = await api.post<Shop>('/shops', requestBody, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/json',
       },
     });
+
     return response.data;
   },
 
   /**
    * Actualizar un local (solo dueño)
    * PATCH /api/shops/:id
+   *
+   * Las imágenes nuevas se suben a Supabase Storage y se envían las URLs al backend
    */
   update: async (id: string, data: UpdateShopRequest): Promise<Shop> => {
-    const formData = new FormData();
+    // Upload new images to Supabase Storage if provided
+    let logoUrl: string | undefined;
+    let bannerUrl: string | undefined;
 
-    // Solo agregar campos que fueron modificados
-    if (data.name) formData.append('name', data.name);
-    if (data.description) formData.append('description', data.description);
-    if (data.address) formData.append('address', data.address);
-    if (data.province) formData.append('province', data.province);
-    if (data.city) formData.append('city', data.city);
-    if (data.type) formData.append('type', data.type);
-    if (data.phone) formData.append('phone', data.phone);
-    if (data.email) formData.append('email', data.email);
-    if (data.website) formData.append('website', data.website);
-    if (data.latitude) formData.append('latitude', data.latitude.toString());
-    if (data.longitude) formData.append('longitude', data.longitude.toString());
+    try {
+      if (data.logo) {
+        console.log('Uploading new shop logo to Supabase...');
+        logoUrl = await uploadImage(data.logo.uri, 'shop-logo', { shopId: id });
+        console.log('Logo uploaded:', logoUrl);
+      }
 
-    // Horarios
-    if (data.schedule) {
-      formData.append('schedule', JSON.stringify(data.schedule));
+      if (data.banner) {
+        console.log('Uploading new shop banner to Supabase...');
+        bannerUrl = await uploadImage(data.banner.uri, 'shop-banner', { shopId: id });
+        console.log('Banner uploaded:', bannerUrl);
+      }
+    } catch (uploadError) {
+      console.error('Error uploading images to Supabase:', uploadError);
+      throw new Error('Error al subir las imágenes. Por favor intenta nuevamente.');
     }
 
-    // Imágenes nuevas
-    if (data.logo) {
-      formData.append('logo', {
-        uri: data.logo.uri,
-        type: data.logo.type || 'image/jpeg',
-        name: data.logo.name || 'logo.jpg',
-      } as any);
-    }
+    // Prepare request body with only modified fields
+    const requestBody: Record<string, any> = {};
 
-    if (data.banner) {
-      formData.append('banner', {
-        uri: data.banner.uri,
-        type: data.banner.type || 'image/jpeg',
-        name: data.banner.name || 'banner.jpg',
-      } as any);
-    }
+    if (data.name) requestBody.name = data.name;
+    if (data.description) requestBody.description = data.description;
+    if (data.address) requestBody.address = data.address;
+    if (data.province) requestBody.province = data.province;
+    if (data.city) requestBody.city = data.city;
+    if (data.type) requestBody.type = data.type;
+    if (data.phone) requestBody.phone = data.phone;
+    if (data.email) requestBody.email = data.email;
+    if (data.website) requestBody.website = data.website;
+    if (data.latitude) requestBody.latitude = data.latitude;
+    if (data.longitude) requestBody.longitude = data.longitude;
+    if (data.schedule) requestBody.schedule = data.schedule;
 
-    const response = await api.patch<Shop>(`/shops/${id}`, formData, {
+    // Image URLs from Supabase
+    if (logoUrl) requestBody.logo = logoUrl;
+    if (bannerUrl) requestBody.banner = bannerUrl;
+
+    const response = await api.patch<Shop>(`/shops/${id}`, requestBody, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/json',
       },
     });
+
     return response.data;
   },
 
@@ -528,48 +592,117 @@ export const shopService = {
 
 export const subscriptionService = {
   /**
-   * Crear suscripción para un shop
+   * Crear suscripción para el usuario autenticado
    * POST /api/subscriptions
+   * El backend asocia la suscripción al shop del usuario basándose en el token
    */
   create: async (data: CreateSubscriptionRequest): Promise<Subscription> => {
-    const response = await api.post<Subscription>('/subscriptions', data);
+    // El backend no acepta shopId - usa el token para identificar al usuario/shop
+    const requestBody: Record<string, any> = {
+      plan: data.plan,
+    };
+    if (data.autoRenew !== undefined) {
+      requestBody.autoRenew = data.autoRenew;
+    }
+
+    console.log('Creating subscription with data:', requestBody);
+    const response = await api.post<Subscription>('/subscriptions', requestBody);
     return response.data;
   },
 
   /**
    * Reintentar pago de una suscripción fallida
    * POST /api/subscriptions/:id/retry-payment
+   * NOTE: Este endpoint puede no estar implementado en el backend
    */
   retryPayment: async (id: string): Promise<{ message: string; subscription: Subscription }> => {
-    const response = await api.post(`/subscriptions/${id}/retry-payment`);
-    return response.data;
+    try {
+      const response = await api.post(`/subscriptions/${id}/retry-payment`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        throw new Error('Esta función no está disponible. Contacta al soporte.');
+      }
+      throw error;
+    }
   },
 
   /**
    * Obtener estado del pago de una suscripción
    * GET /api/subscriptions/:id/payment-status
+   * NOTE: Este endpoint puede no estar implementado - usar getMySubscription en su lugar
    */
   getPaymentStatus: async (id: string): Promise<PaymentStatusResponse> => {
-    const response = await api.get<PaymentStatusResponse>(`/subscriptions/${id}/payment-status`);
-    return response.data;
+    try {
+      const response = await api.get<PaymentStatusResponse>(`/subscriptions/${id}/payment-status`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // Fallback: obtener la suscripción y devolver su estado
+        const subscription = await subscriptionService.getMySubscription();
+        if (subscription) {
+          return {
+            status: subscription.status,
+            message: `Estado actual: ${subscription.status}`,
+            subscription,
+          };
+        }
+        throw new Error('No se encontró la suscripción');
+      }
+      throw error;
+    }
   },
 
   /**
-   * Obtener suscripción de un shop
-   * GET /api/subscriptions/shop/:shopId
+   * Obtener mi suscripción (del usuario autenticado)
+   * GET /api/subscriptions/me
    */
-  getByShop: async (shopId: string): Promise<Subscription> => {
-    const response = await api.get<Subscription>(`/subscriptions/shop/${shopId}`);
-    return response.data;
+  getMySubscription: async (): Promise<Subscription | null> => {
+    try {
+      const response = await api.get<Subscription>('/subscriptions/me');
+      return response.data;
+    } catch (error: any) {
+      // Si no hay suscripción, retornar null en lugar de lanzar error
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Obtener suscripción de un shop (deprecated - usar getMySubscription)
+   * @deprecated Use getMySubscription instead
+   */
+  getByShop: async (_shopId: string): Promise<Subscription | null> => {
+    // El backend usa /subscriptions/me basado en el token del usuario
+    return subscriptionService.getMySubscription();
   },
 
   /**
    * Cancelar suscripción
-   * DELETE /api/subscriptions/:id
+   * DELETE /api/subscriptions/:id o DELETE /api/subscriptions/me
    */
   cancel: async (subscriptionId: string): Promise<{ message: string }> => {
-    const response = await api.delete(`/subscriptions/${subscriptionId}`);
-    return response.data;
+    try {
+      // Intentar primero con el ID específico
+      const response = await api.delete(`/subscriptions/${subscriptionId}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // Fallback: intentar con /me
+        try {
+          const response = await api.delete('/subscriptions/me');
+          return response.data;
+        } catch (fallbackError: any) {
+          if (fallbackError.response?.status === 404) {
+            throw new Error('No se puede cancelar la suscripción. Contacta al soporte.');
+          }
+          throw fallbackError;
+        }
+      }
+      throw error;
+    }
   },
 
   /**

@@ -31,10 +31,13 @@ interface PlanDetails {
   features: PlanFeature[];
 }
 
+// Precios de PRUEBA - Cambiar a 9999 y 19999 para producción
+const IS_TEST_MODE = true;
+
 const PLANS: Record<SubscriptionPlan, PlanDetails> = {
   retailer: {
     name: 'Plan Minorista',
-    price: 9999,
+    price: IS_TEST_MODE ? 1 : 9999,
     features: [
       { text: 'Aparecer en el mapa', included: true },
       { text: 'Publicar productos', included: true },
@@ -44,7 +47,7 @@ const PLANS: Record<SubscriptionPlan, PlanDetails> = {
   },
   wholesaler: {
     name: 'Plan Mayorista',
-    price: 19999,
+    price: IS_TEST_MODE ? 2 : 19999,
     features: [
       { text: 'Aparecer en el mapa', included: true },
       { text: 'Publicar productos', included: true },
@@ -73,21 +76,23 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
       const shopData = await shopService.getMyShop();
       setShop(shopData);
 
-      // Obtener suscripción actual si existe
+      // Obtener suscripción actual si existe (usa /subscriptions/me)
       try {
-        console.log('Fetching subscription for shop ID:', shopData.id);
-        const subscriptionData = await subscriptionService.getByShop(shopData.id);
-        console.log('Subscription fetched successfully:', subscriptionData);
-        setSubscription(subscriptionData);
+        console.log('Fetching subscription for current user...');
+        const subscriptionData = await subscriptionService.getMySubscription();
+        if (subscriptionData) {
+          console.log('Subscription fetched successfully:', subscriptionData);
+          setSubscription(subscriptionData);
+        } else {
+          console.log('No active subscription found');
+          setSubscription(null);
+        }
       } catch (error: any) {
         console.error('Error fetching subscription:', error);
         console.error('Error status:', error.response?.status);
         console.error('Error data:', error.response?.data);
-
-        // Si no hay suscripción (404), no es un error
-        if (error.response?.status !== 404) {
-          console.warn('Unexpected error fetching subscription, status:', error.response?.status);
-        }
+        // Error inesperado - mostrar como warning pero continuar
+        console.warn('Could not fetch subscription, continuing without it');
         setSubscription(null);
       }
     } catch (error: any) {
@@ -148,6 +153,14 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
                 } else {
                   Alert.alert('Error', 'No se pudo abrir el enlace de pago');
                 }
+              } else {
+                // initPoint es null - problema con MercadoPago en el backend
+                console.error('Subscription created but initPoint is null:', response);
+                Alert.alert(
+                  'Error de configuración',
+                  'La suscripción se creó pero no se pudo generar el enlace de pago de MercadoPago. Por favor contacta al soporte técnico.\n\nID de suscripción: ' + response.id,
+                  [{ text: 'OK', onPress: () => fetchData() }]
+                );
               }
             } catch (error: any) {
               console.error('Error creating subscription:', error);
@@ -184,7 +197,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
                   fetchData().then(async () => {
                     // Intentar obtener la suscripción directamente del backend
                     try {
-                      const pendingSubscription = await subscriptionService.getByShop(shop.id);
+                      const pendingSubscription = await subscriptionService.getMySubscription();
 
                       if (!pendingSubscription) {
                         Alert.alert('Error', 'No se pudo encontrar la suscripción pendiente');

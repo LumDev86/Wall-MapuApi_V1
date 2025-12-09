@@ -227,7 +227,8 @@ const EditProductScreen: React.FC<EditProductScreenProps> = ({ navigation, route
         updateData.images = newImages;
       }
 
-      await productService.update(productId, updateData);
+      // Pass shopId to organize images in Supabase Storage
+      await productService.update(productId, updateData, product?.shopId);
 
       Alert.alert(
         'Éxito',

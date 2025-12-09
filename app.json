@@ -23,7 +23,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.wallmapu.app",
       "config": {
-        "googleMapsApiKey": ""
+        "googleMapsApiKey": "AIzaSyC56WIVTWhOvGn_r0JVhqdqx5-IYoWyL_Q"
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Wallmapu necesita acceso a tu ubicación para mostrarte tiendas cercanas",
@@ -38,7 +38,7 @@
       },
       "config": {
         "googleMaps": {
-          "apiKey": ""
+          "apiKey": "AIzaSyC56WIVTWhOvGn_r0JVhqdqx5-IYoWyL_Q"
         }
       },
       "permissions": [

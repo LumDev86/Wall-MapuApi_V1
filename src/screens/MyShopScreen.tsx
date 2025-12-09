@@ -39,6 +39,9 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
     try {
       setLoading(true);
       const response = await shopService.getMyShop();
+      console.log('🏪 MI TIENDA DATA:', JSON.stringify(response, null, 2));
+      console.log('🏪 Tipo de tienda:', response.type);
+      console.log('🏪 Logo URL:', response.logo);
       setShop(response);
       setHasShop(true);
       fetchProducts(response.id);
