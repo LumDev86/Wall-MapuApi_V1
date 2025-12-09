@@ -140,11 +140,14 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
                 autoRenew: true,
               });
 
-              if (response.initPoint) {
+              // El backend puede devolver init_point (snake_case) o initPoint (camelCase)
+              const paymentUrl = response.init_point || response.initPoint;
+
+              if (paymentUrl) {
                 // Abrir URL de Mercado Pago
-                const supported = await Linking.canOpenURL(response.initPoint);
+                const supported = await Linking.canOpenURL(paymentUrl);
                 if (supported) {
-                  await Linking.openURL(response.initPoint);
+                  await Linking.openURL(paymentUrl);
                   Alert.alert(
                     'Pago en proceso',
                     'Por favor completa el pago en Mercado Pago. Usa "Actualizar" para verificar el estado del pago.',
@@ -158,7 +161,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
                 console.error('Subscription created but initPoint is null:', response);
                 Alert.alert(
                   'Error de configuración',
-                  'La suscripción se creó pero no se pudo generar el enlace de pago de MercadoPago. Por favor contacta al soporte técnico.\n\nID de suscripción: ' + response.id,
+                  'La suscripción se creó pero no se pudo generar el enlace de pago de MercadoPago. Por favor contacta al soporte técnico.\n\nID de suscripción: ' + (response.subscriptionId || response.id),
                   [{ text: 'OK', onPress: () => fetchData() }]
                 );
               }
