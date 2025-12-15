@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import { authService } from '../services/api';
 import { COLORS } from '../constants/colors';
 
 interface EditProfileScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
 }
 
 const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => {

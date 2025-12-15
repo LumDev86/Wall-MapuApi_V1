@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -20,7 +21,7 @@ import { COLORS } from '../constants/colors';
 import LocationPicker from '../components/LocationPicker';
 
 interface CreateShopScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
 }
 
 type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';

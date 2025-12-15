@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MainStackNavigationProp } from '../../types/navigation.types';
 import {
   View,
   Text,
@@ -31,7 +32,7 @@ interface Pet {
 type Gender = 'female' | 'male' | 'other' | '';
 
 interface CompleteProfileScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<'CompleteProfile'>;
 }
 
 const CompleteProfileScreen: React.FC<CompleteProfileScreenProps> = ({ navigation }) => {

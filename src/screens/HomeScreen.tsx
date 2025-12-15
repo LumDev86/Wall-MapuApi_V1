@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { MainStackParamList } from '../navigation/AppNavigator';
+import type { MainStackParamList } from '../types/navigation.types';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { COLORS } from '../constants/colors';
@@ -22,6 +22,7 @@ import { shopService, subscriptionService, productService } from '../services/ap
 import { Shop, Product } from '../types/product.types';
 import { Subscription } from '../types/subscription.types';
 import ImageWithFallback from '../components/ImageWithFallback';
+import BannerCarousel from '../components/BannerCarousel';
 import { moderateScale as ms, scale as s, verticalScale as vs, getStatusBarHeight } from '../utils/responsive';
 
 // Importación condicional de react-native-maps
@@ -573,6 +574,66 @@ const HomeScreen = () => {
           </View>
         </View>
 
+
+        {/* Banner Carousel */}
+        <BannerCarousel />
+
+        {/* Mapa preview */}
+        <View style={styles.mapSection}>
+          <View style={styles.mapPreview}>
+            {MapView ? (
+              <MapView
+                provider={PROVIDER_GOOGLE}
+                style={styles.miniMap}
+                initialRegion={{
+                  latitude: user?.latitude || -32.4827,
+                  longitude: user?.longitude || -58.2363,
+                  latitudeDelta: 0.05,
+                  longitudeDelta: 0.05,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}
+              >
+                {/* Marcadores de tiendas cercanas */}
+                {nearbyShops.slice(0, 5).map((shop) => {
+                  if (!shop.latitude || !shop.longitude) return null;
+                  return (
+                    <Marker
+                      key={shop.id}
+                      coordinate={{
+                        latitude: parseFloat(String(shop.latitude)),
+                        longitude: parseFloat(String(shop.longitude)),
+                      }}
+                      pinColor={COLORS.primary}
+                    />
+                  );
+                })}
+              </MapView>
+            ) : (
+              /* Placeholder para Expo Go */
+              <View style={styles.mapPlaceholder}>
+                <Ionicons name="map-outline" size={48} color={COLORS.primary} />
+                <Text style={styles.mapPlaceholderText}>
+                  Mapa disponible en build nativo
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.mapOverlay}>
+            <Text style={styles.mapTitle}>Explora el Mapa</Text>
+            <Text style={styles.mapSubtitle}>
+              Encuentra las mejores tiendas de mascotas cerca de ti
+            </Text>
+            <TouchableOpacity style={styles.mapButton} onPress={navigateToMap}>
+              <Ionicons name="map" size={20} color="#fff" />
+              <Text style={styles.mapButtonText}>Ver Mapa</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Tiendas cercanas */}
         {nearbyShops.length > 0 && (
           <View style={styles.section}>
@@ -631,62 +692,6 @@ const HomeScreen = () => {
             </ScrollView>
           </View>
         )}
-
-        {/* Mapa preview */}
-        <View style={styles.mapSection}>
-          <View style={styles.mapPreview}>
-            {MapView ? (
-              <MapView
-                provider={PROVIDER_GOOGLE}
-                style={styles.miniMap}
-                initialRegion={{
-                  latitude: user?.latitude || -32.4827,
-                  longitude: user?.longitude || -58.2363,
-                  latitudeDelta: 0.05,
-                  longitudeDelta: 0.05,
-                }}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                rotateEnabled={false}
-                pitchEnabled={false}
-              >
-                {/* Marcadores de tiendas cercanas */}
-                {nearbyShops.slice(0, 5).map((shop) => {
-                  if (!shop.latitude || !shop.longitude) return null;
-                  return (
-                    <Marker
-                      key={shop.id}
-                      coordinate={{
-                        latitude: parseFloat(String(shop.latitude)),
-                        longitude: parseFloat(String(shop.longitude)),
-                      }}
-                      pinColor={COLORS.primary}
-                    />
-                  );
-                })}
-              </MapView>
-            ) : (
-              /* Placeholder para Expo Go */
-              <View style={styles.mapPlaceholder}>
-                <Ionicons name="map-outline" size={48} color={COLORS.primary} />
-                <Text style={styles.mapPlaceholderText}>
-                  Mapa disponible en build nativo
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.mapOverlay}>
-            <Text style={styles.mapTitle}>Explora el Mapa</Text>
-            <Text style={styles.mapSubtitle}>
-              Encuentra las mejores tiendas de mascotas cerca de ti
-            </Text>
-            <TouchableOpacity style={styles.mapButton} onPress={navigateToMap}>
-              <Ionicons name="map" size={20} color="#fff" />
-              <Text style={styles.mapButtonText}>Ver Mapa</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {/* Tiendas destacadas */}
         {featuredShops.length > 0 && (

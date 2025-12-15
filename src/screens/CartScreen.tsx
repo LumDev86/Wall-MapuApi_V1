@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { MainStackParamList } from '../navigation/AppNavigator';
+import type { MainStackParamList } from '../types/navigation.types';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/colors';

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import { Shop } from '../types/product.types';
 import { COLORS } from '../constants/colors';
 
 interface SubscriptionScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
 }
 
 interface PlanFeature {
@@ -161,7 +162,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ navigation }) =
                 console.error('Subscription created but initPoint is null:', response);
                 Alert.alert(
                   'Error de configuración',
-                  'La suscripción se creó pero no se pudo generar el enlace de pago de MercadoPago. Por favor contacta al soporte técnico.\n\nID de suscripción: ' + (response.subscriptionId || response.id),
+                  'La suscripción se creó pero no se pudo generar el enlace de pago de MercadoPago. Por favor contacta al soporte técnico.\n\nID de suscripción: ' + response.id,
                   [{ text: 'OK', onPress: () => fetchData() }]
                 );
               }

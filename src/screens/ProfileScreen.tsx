@@ -1,4 +1,5 @@
 import React from 'react';
+import { BottomTabScreenNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/colors';
 
 interface ProfileScreenProps {
-  navigation: any;
+  navigation: BottomTabScreenNavigationProp<'Perfil'>;
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {

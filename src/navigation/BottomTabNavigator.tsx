@@ -1,4 +1,5 @@
 import React from 'react';
+import { BottomTabParamList } from '../types/navigation.types';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,12 +8,6 @@ import HomeScreen from '../screens/HomeScreen';
 import MapScreen from '../screens/MapScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { COLORS } from '../constants/colors';
-
-export type BottomTabParamList = {
-  Inicio: undefined;
-  Mapa: undefined;
-  Perfil: undefined;
-};
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 

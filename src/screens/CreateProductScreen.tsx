@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -21,7 +22,7 @@ import { COLORS } from '../constants/colors';
 const { width } = Dimensions.get('window');
 
 interface CreateProductScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
   route: any;
 }
 
@@ -193,19 +194,14 @@ const CreateProductScreen: React.FC<CreateProductScreenProps> = ({ navigation, r
 
       const newProduct = await productService.create(shopId, productData);
 
-      console.log('✅ Producto creado exitosamente:', newProduct);
+      console.log('✅ Producto creado exitosamente');
       console.log('📋 ID del producto:', newProduct.id);
-      console.log('📋 Estructura completa:', JSON.stringify(newProduct, null, 2));
 
-      // El backend puede devolver el id en diferentes campos
-      const productId = newProduct.id || (newProduct as any)._id || (newProduct as any).productId;
-
-      console.log('🔍 Product ID extraído:', productId);
+      const productId = newProduct.id;
 
       if (!productId) {
         console.error('❌ PROBLEMA: El backend no devolvió ningún ID');
-        console.error('📋 Respuesta completa:', newProduct);
-        console.error('📋 Campos disponibles:', Object.keys(newProduct));
+        console.error('📋 Respuesta completa:', JSON.stringify(newProduct, null, 2));
 
         // Si el backend no devuelve ID, volvemos a la pantalla anterior
         // y el producto aparecerá en el listado cuando se recargue

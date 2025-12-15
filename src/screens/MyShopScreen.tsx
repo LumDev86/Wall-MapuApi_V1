@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -19,7 +20,7 @@ import ImageWithFallback from '../components/ImageWithFallback';
 import { moderateScale as ms, scale as s, getGridItemWidth } from '../utils/responsive';
 
 interface MyShopScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
 }
 
 const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
@@ -106,7 +107,8 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
 
   const handleEditShop = () => {
     if (shop) {
-      navigation.navigate('EditShop', { shopId: shop.id });
+      // TODO: Implementar EditShop screen
+      console.warn('EditShop screen no está implementado');
     }
   };
 

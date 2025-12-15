@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -19,7 +20,7 @@ import ImageWithFallback from '../components/ImageWithFallback';
 import { screenWidth as width, moderateScale as ms, scale as s } from '../utils/responsive';
 
 interface ProductDetailScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
   route: any;
 }
 

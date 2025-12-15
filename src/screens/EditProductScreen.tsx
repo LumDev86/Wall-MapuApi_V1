@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -18,7 +19,7 @@ import { Product, Category, UpdateProductRequest, ImageFile } from '../types/pro
 import { COLORS } from '../constants/colors';
 
 interface EditProductScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
   route: {
     params: {
       productId: string;

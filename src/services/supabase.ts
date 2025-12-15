@@ -5,9 +5,10 @@
  * en lugar del SDK oficial para evitar problemas de compatibilidad con React Native.
  */
 
+import { env } from '../utils/env';
 // Supabase configuration
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
 
 // Bucket name - must match the bucket created in Supabase dashboard
 const BUCKET_NAME = 'Wall-MapuApi';
@@ -112,18 +113,18 @@ export const uploadImage = async (
 
     // Generate file name from URI
     const fileName = uri.split('/').pop() || `image_${Date.now()}.jpg`;
-    console.log('File name:', fileName);
+    console.log('📝 File name:', fileName);
 
     // Generate storage path
     const storagePath = generateStoragePath(type, fileName, options);
-    console.log('Storage path:', storagePath);
+    console.log('📁 Storage path:', storagePath);
 
     // Get MIME type
     const contentType = getMimeType(fileName);
-    console.log('Content type:', contentType);
+    console.log('📄 Content type:', contentType);
 
     // Fetch the image from local URI
-    console.log('Fetching image from local URI...');
+    console.log('📥 Fetching image from local URI...');
     const imageResponse = await fetch(uri);
 
     if (!imageResponse.ok) {
@@ -131,7 +132,7 @@ export const uploadImage = async (
     }
 
     const blob = await imageResponse.blob();
-    console.log('Blob size:', blob.size);
+    console.log('📦 Blob size:', blob.size, 'bytes');
 
     if (blob.size === 0) {
       throw new Error('Image file is empty');
@@ -139,10 +140,11 @@ export const uploadImage = async (
 
     // Build Supabase Storage API URL
     const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${storagePath}`;
-    console.log('Upload URL:', uploadUrl);
+    console.log('🌐 Upload URL:', uploadUrl);
+    console.log('🪣 Bucket name:', BUCKET_NAME);
 
     // Upload to Supabase using fetch
-    console.log('Uploading to Supabase...');
+    console.log('⬆️ Uploading to Supabase...');
     const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
@@ -154,11 +156,12 @@ export const uploadImage = async (
       body: blob,
     });
 
-    console.log('Upload response status:', uploadResponse.status);
+    console.log('📊 Upload response status:', uploadResponse.status);
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      console.error('Upload error response:', errorText);
+      console.error('❌ Upload error response:', errorText);
+      console.error('❌ Status code:', uploadResponse.status);
 
       // Parse error for better messages
       try {
@@ -191,8 +194,11 @@ export const uploadImage = async (
     console.log('Public URL:', publicUrl);
     return publicUrl;
   } catch (error: any) {
-    console.error('=== SUPABASE UPLOAD ERROR ===');
-    console.error('Error:', error?.message || error);
+    console.error('❌❌❌ SUPABASE UPLOAD ERROR ❌❌❌');
+    console.error('Error completo:', JSON.stringify(error, null, 2));
+    console.error('Error message:', error?.message || 'No message');
+    console.error('Error name:', error?.name || 'No name');
+    console.error('Error stack:', error?.stack || 'No stack');
     throw error;
   }
 };

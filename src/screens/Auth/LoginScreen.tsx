@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AuthStackNavigationProp } from '../../types/navigation.types';
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import { useAuth } from '../../context/AuthContext';
 import { COLORS } from '../../constants/colors';
 
 interface LoginScreenProps {
-  navigation: any;
+  navigation: AuthStackNavigationProp<any>;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {

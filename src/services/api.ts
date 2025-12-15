@@ -1,5 +1,6 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { env } from '../utils/env';
+import { secureStorage } from '../utils/secureStorage';
 import {
   AuthResponse,
   LoginRequest,
@@ -34,7 +35,7 @@ import {
   generateTempId,
 } from './supabase';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = env.API_URL;
 
 const api = axios.create({
   baseURL: API_URL,
@@ -46,7 +47,7 @@ const api = axios.create({
 // Interceptor para agregar token a todas las peticiones
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('authToken');
+    const token = await secureStorage.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -69,8 +70,8 @@ export const authService = {
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
     const response = await api.post<AuthResponse>('/auth/register', data);
     if (response.data.token) {
-      await AsyncStorage.setItem('authToken', response.data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+      await secureStorage.saveToken(response.data.token);
+      await secureStorage.saveUser(response.data.user);
     }
     return response.data;
   },
@@ -82,8 +83,8 @@ export const authService = {
   login: async (data: LoginRequest): Promise<AuthResponse> => {
     const response = await api.post<AuthResponse>('/auth/login', data);
     if (response.data.token) {
-      await AsyncStorage.setItem('authToken', response.data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+      await secureStorage.saveToken(response.data.token);
+      await secureStorage.saveUser(response.data.user);
     }
     return response.data;
   },
@@ -113,7 +114,7 @@ export const authService = {
   getMe: async (): Promise<User> => {
     const response = await api.get<User>('/auth/me');
     // Actualizar usuario en AsyncStorage
-    await AsyncStorage.setItem('user', JSON.stringify(response.data));
+    await secureStorage.saveUser(response.data);
     return response.data;
   },
 
@@ -124,7 +125,7 @@ export const authService = {
   updateLocation: async (data: UpdateLocationRequest): Promise<User> => {
     const response = await api.patch<User>('/auth/location', data);
     // Actualizar usuario en AsyncStorage
-    await AsyncStorage.setItem('user', JSON.stringify(response.data));
+    await secureStorage.saveUser(response.data);
     return response.data;
   },
 
@@ -132,29 +133,29 @@ export const authService = {
    * Cerrar sesión (local)
    */
   logout: async (): Promise<void> => {
-    await AsyncStorage.removeItem('authToken');
-    await AsyncStorage.removeItem('user');
+    await secureStorage.deleteToken();
+    await secureStorage.deleteUser();
   },
 
   /**
    * Obtener token almacenado
    */
   getStoredToken: async (): Promise<string | null> => {
-    return await AsyncStorage.getItem('authToken');
+    return await secureStorage.getToken();
   },
 
   /**
    * Obtener usuario almacenado
    */
   getStoredUser: async (): Promise<string | null> => {
-    return await AsyncStorage.getItem('user');
+    const user = await secureStorage.getUser(); return user ? JSON.stringify(user) : null;
   },
 
   /**
    * Limpiar todo el AsyncStorage (debugging)
    */
   clearStorage: async (): Promise<void> => {
-    await AsyncStorage.clear();
+    await secureStorage.clearAll();
   },
 };
 
@@ -271,31 +272,9 @@ export const productService = {
    * Las imágenes se suben primero a Supabase Storage y luego se envían las URLs al backend
    */
   create: async (shopId: string, data: CreateProductRequest): Promise<Product> => {
-    // Generate a temporary product ID for organizing images before creation
-    const tempProductId = generateTempId();
-
     console.log('🚀 Creando producto en tienda:', shopId);
-    console.log('📦 Temp product ID for images:', tempProductId);
 
-    // Upload images to Supabase Storage first
-    let imageUrls: string[] = [];
-
-    try {
-      if (data.images && data.images.length > 0) {
-        console.log(`📸 Uploading ${data.images.length} images to Supabase...`);
-        imageUrls = await uploadMultipleImages(
-          data.images,
-          'product',
-          { shopId, productId: tempProductId }
-        );
-        console.log('✅ Images uploaded:', imageUrls);
-      }
-    } catch (uploadError) {
-      console.error('Error uploading images to Supabase:', uploadError);
-      throw new Error('Error al subir las imágenes. Por favor intenta nuevamente.');
-    }
-
-    // Prepare request body with image URLs
+    // Prepare request body WITHOUT images (backend doesn't accept them in create)
     const requestBody: Record<string, any> = {
       name: data.name,
       priceRetail: data.priceRetail,
@@ -310,29 +289,69 @@ export const productService = {
     if (data.barcode) requestBody.barcode = data.barcode;
     if (data.brand) requestBody.brand = data.brand;
 
-    // Image URLs from Supabase
-    if (imageUrls.length > 0) {
-      requestBody.images = imageUrls;
-    }
-
     console.log('📦 Datos del producto:', {
       name: data.name,
       priceRetail: data.priceRetail,
       stock: data.stock,
       categoryId: data.categoryId,
-      imagesCount: imageUrls.length,
+      hasImages: data.images && data.images.length > 0,
     });
 
-    const response = await api.post<Product>(`/products/shop/${shopId}`, requestBody, {
+    // Create product first without images
+    const response = await api.post<any>(`/products/shop/${shopId}`, requestBody, {
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    console.log('✅ Respuesta del backend al crear producto:', response.data);
-    console.log('📋 ID del producto creado:', response.data.id);
+    // Extract product from response (backend returns { message, product })
+    const product = response.data.product || response.data;
+    console.log('✅ Producto creado:', product);
+    console.log('📋 ID del producto:', product.id);
 
-    return response.data;
+    // If there are images, upload them and update the product
+    if (data.images && data.images.length > 0 && product.id) {
+      try {
+        console.log(`📸 Subiendo ${data.images.length} imágenes a Supabase...`);
+        const imageUrls = await uploadMultipleImages(
+          data.images,
+          'product',
+          { shopId, productId: product.id }
+        );
+        console.log('✅ Imágenes subidas a Supabase:', imageUrls);
+
+        // Update product with images (backend expects 'imagesBase64' field)
+        console.log('🔄 Actualizando producto con imágenes...');
+        const updatedResponse = await api.patch<any>(
+          `/products/${product.id}`,
+          { imagesBase64: imageUrls },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        const updatedProduct = updatedResponse.data.product || updatedResponse.data;
+        console.log('✅ Producto actualizado con imágenes');
+        return updatedProduct;
+      } catch (imageError: any) {
+        console.error('❌❌❌ ERROR AL SUBIR IMÁGENES ❌❌❌');
+        console.error('Error completo:', JSON.stringify(imageError, null, 2));
+        console.error('Error message:', imageError.message);
+        console.error('Error response:', imageError.response?.data);
+        console.error('Error status:', imageError.response?.status);
+        console.error('Stack trace:', imageError.stack);
+
+        // Show alert to user
+        console.error('⚠️ El producto fue creado pero las imágenes no se pudieron subir');
+
+        // Return the product even if image upload fails
+        return product;
+      }
+    }
+
+    return product;
   },
 
   /**
@@ -373,9 +392,9 @@ export const productService = {
     if (data.brand) requestBody.brand = data.brand;
     if (data.categoryId) requestBody.categoryId = data.categoryId;
 
-    // Image URLs from Supabase (these are new images to add)
+    // Image URLs from Supabase (backend expects 'imagesBase64' field)
     if (imageUrls.length > 0) {
-      requestBody.images = imageUrls;
+      requestBody.imagesBase64 = imageUrls;
     }
 
     const response = await api.patch<Product>(`/products/${id}`, requestBody, {
@@ -642,6 +661,8 @@ export const subscriptionService = {
         const subscription = await subscriptionService.getMySubscription();
         if (subscription) {
           return {
+            canRetryPayment: subscription.canRetryPayment,
+            attemptsRemaining: subscription.attemptsRemaining,
             status: subscription.status,
             message: `Estado actual: ${subscription.status}`,
             subscription,

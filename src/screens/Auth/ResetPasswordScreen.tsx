@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AuthStackNavigationProp } from '../../types/navigation.types';
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import { authService } from '../../services/api';
 import { COLORS } from '../../constants/colors';
 
 interface ResetPasswordScreenProps {
-  navigation: any;
+  navigation: AuthStackNavigationProp<any>;
   route?: any;
 }
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AuthStackNavigationProp } from '../../types/navigation.types';
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import { authService } from '../../services/api';
 import { COLORS } from '../../constants/colors';
 
 interface ForgotPasswordScreenProps {
-  navigation: any;
+  navigation: AuthStackNavigationProp<any>;
 }
 
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation }) => {
@@ -147,7 +148,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation 
 
             <TouchableOpacity
               style={styles.continueButton}
-              onPress={() => navigation.navigate('ResetPassword')}
+              onPress={() => navigation.navigate('ResetPassword', {})}
             >
               <Text style={styles.continueButtonText}>Continuar con el código</Text>
             </TouchableOpacity>

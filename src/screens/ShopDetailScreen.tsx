@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { MainStackNavigationProp } from '../types/navigation.types';
 import {
   View,
   Text,
@@ -22,7 +23,7 @@ import ImageWithFallback from '../components/ImageWithFallback';
 import { moderateScale as ms, scale as s, getGridItemWidth } from '../utils/responsive';
 
 interface ShopDetailScreenProps {
-  navigation: any;
+  navigation: MainStackNavigationProp<any>;
   route: any;
 }
 
@@ -250,6 +251,29 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
             </TouchableOpacity>
           </View>
         </View>
+
+          {/* Botón de Catálogo Completo */}
+          {products.length > 0 && (
+            <TouchableOpacity
+              style={styles.catalogButton}
+              onPress={() =>
+                navigation.navigate('ProductList', {
+                  shopId: shop.id,
+                  title: `Catálogo de ${shop.name}`,
+                  shopName: shop.name,
+                })
+              }
+            >
+              <View style={styles.catalogButtonContent}>
+                <Ionicons name="grid-outline" size={22} color="#fff" />
+                <Text style={styles.catalogButtonText} numberOfLines={1}>Ver Catálogo Completo</Text>
+                <Text style={styles.catalogButtonCount}>
+                  {products.length} producto{products.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
 
         {/* Barra de búsqueda sticky */}
         <View style={styles.searchSection}>
@@ -625,6 +649,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  catalogButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.primary,
+    marginTop: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  catalogButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  catalogButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  catalogButtonCount: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '600',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   searchSection: {
     backgroundColor: '#fff',

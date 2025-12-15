@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { AuthStackNavigationProp } from '../../types/navigation.types';
 import {
   View,
   Text,
@@ -21,7 +22,7 @@ import { COLORS } from '../../constants/colors';
 import { UserRole } from '../../types/auth.types';
 
 interface RegisterScreenProps {
-  navigation: any;
+  navigation: AuthStackNavigationProp<any>;
 }
 
 interface PlacePrediction {

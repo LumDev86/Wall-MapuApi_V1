@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { MainStackParamList } from '../navigation/AppNavigator';
+import type { MainStackParamList } from '../types/navigation.types';
 import { COLORS } from '../constants/colors';
 import { productService } from '../services/api';
 import { SearchProduct } from '../types/product.types';

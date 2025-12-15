@@ -1,4 +1,5 @@
 import React from 'react';
+import { AuthStackParamList, MainStackParamList } from '../types/navigation.types';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
@@ -27,37 +28,6 @@ import TermsScreen from '../screens/TermsScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { COLORS } from '../constants/colors';
-
-export type AuthStackParamList = {
-  Login: undefined;
-  Register: undefined;
-  ForgotPassword: undefined;
-  ResetPassword: { token?: string };
-  Terms: undefined;
-  PrivacyPolicy: undefined;
-};
-
-export type MainStackParamList = {
-  HomeTabs: undefined;
-  CompleteProfile: undefined;
-  ProductList: { title?: string; categoryId?: string; categoryName?: string; shopId?: string };
-  ProductDetail: { productId: string };
-  ShopDetail: { shopId: string };
-  Search: undefined;
-  EditProfile: undefined;
-  Cart: undefined;
-  MyShop: undefined;
-  CreateShop: undefined;
-  CreateProduct: { shopId: string };
-  EditProduct: { productId: string };
-  Subscription: undefined;
-  About: undefined;
-  HelpSupport: undefined;
-  Settings: undefined;
-  MyOrders: undefined;
-  Terms: undefined;
-  PrivacyPolicy: undefined;
-};
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();

@@ -13,8 +13,7 @@ export interface Subscription {
   lastPaymentDate?: string;
   nextPaymentDate?: string;
   shopId: string;
-  initPoint?: string; // URL de pago de Mercado Pago (camelCase)
-  init_point?: string; // URL de pago de Mercado Pago (snake_case del backend)
+  initPoint?: string; // URL de pago de Mercado Pago
   failedPaymentAttempts: number;
   canRetryPayment: boolean;
   attemptsRemaining: number;
