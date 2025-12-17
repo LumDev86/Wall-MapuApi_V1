@@ -13,8 +13,9 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { shopService, productService } from '../services/api';
+import { shopService, productService, subscriptionService } from '../services/api';
 import { Shop, Product } from '../types/product.types';
+import { Subscription } from '../types/subscription.types';
 import { COLORS } from '../constants/colors';
 import ImageWithFallback from '../components/ImageWithFallback';
 import { moderateScale as ms, scale as s, getGridItemWidth } from '../utils/responsive';
@@ -31,6 +32,8 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
   const [hasShop, setHasShop] = useState<boolean | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   useEffect(() => {
     fetchMyShop();
@@ -46,6 +49,7 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
       setShop(response);
       setHasShop(true);
       fetchProducts(response.id);
+      fetchSubscription();
     } catch (error: any) {
       console.error('Error fetching my shop:', error);
       if (error.response?.status === 404) {
@@ -124,6 +128,45 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
         shopId: shop.id,
         title: `Productos de ${shop.name}`,
       });
+    }
+  };
+
+  const fetchSubscription = async () => {
+    try {
+      const response = await subscriptionService.getMySubscription();
+      setSubscription(response);
+      setHasActiveSubscription(response.status === 'active');
+      console.log('📋 Suscripción:', response.status);
+    } catch (error: any) {
+      console.log('⚠️ No hay suscripción activa');
+      setSubscription(null);
+      setHasActiveSubscription(false);
+    }
+  };
+
+  const handleManageBanner = () => {
+    if (!hasActiveSubscription) {
+      Alert.alert(
+        'Suscripción requerida',
+        subscription && subscription.status === 'expired'
+          ? 'Tu suscripción ha expirado. Renueva tu suscripción para poder gestionar banners promocionales.'
+          : 'Necesitas una suscripción activa para gestionar banners promocionales.',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Ver planes',
+            onPress: () => navigation.navigate('Subscription'),
+          },
+        ]
+      );
+      return;
+    }
+
+    if (shop) {
+      navigation.navigate('ManagePromotionalBanner', { shop });
     }
   };
 
@@ -274,6 +317,31 @@ const MyShopScreen: React.FC<MyShopScreenProps> = ({ navigation }) => {
             <TouchableOpacity style={styles.actionButton} onPress={handleViewProducts}>
               <Ionicons name="grid-outline" size={24} color={COLORS.primary} />
               <Text style={styles.actionButtonText}>Ver Productos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                !hasActiveSubscription && styles.actionButtonDisabled
+              ]}
+              onPress={handleManageBanner}
+            >
+              <Ionicons
+                name="megaphone-outline"
+                size={24}
+                color={hasActiveSubscription ? COLORS.primary : COLORS.gray}
+              />
+              <Text style={[
+                styles.actionButtonText,
+                !hasActiveSubscription && styles.actionButtonTextDisabled
+              ]}>
+                Banner Promocional
+              </Text>
+              {!hasActiveSubscription && (
+                <View style={styles.subscriptionBadge}>
+                  <Ionicons name="lock-closed" size={10} color={COLORS.white} />
+                  <Text style={styles.subscriptionBadgeText}>Suscripción requerida</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -581,10 +649,12 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   actionButton: {
     flex: 1,
+    minWidth: '30%',
     backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 16,
@@ -596,10 +666,32 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  actionButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#F5F5F5',
+  },
   actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
+  },
+  actionButtonTextDisabled: {
+    color: COLORS.gray,
+  },
+  subscriptionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    marginTop: 4,
+  },
+  subscriptionBadgeText: {
+    fontSize: 10,
+    color: COLORS.white,
+    fontWeight: '600',
   },
   productCard: {
     width: 150,

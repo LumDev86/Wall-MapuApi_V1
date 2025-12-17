@@ -16,7 +16,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "b8e9f4c7-3d2a-4b1e-9f6c-2e8d5a7b3c4f"
+        "projectId": "e8cf3ac9-2a07-484d-9124-9a67d0aa3801"
       }
     },
     "ios": {
@@ -57,6 +57,7 @@
           "locationAlwaysAndWhenInUsePermission": "Wallmapu necesita acceso a tu ubicación para mostrarte tiendas cercanas"
         }
       ]
-    ]
+    ],
+    "owner": "whapy"
   }
 }

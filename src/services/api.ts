@@ -774,4 +774,42 @@ export const userService = {
   },
 };
 
+
+// =============================================================================
+// PROMOTIONAL BANNER SERVICES
+// =============================================================================
+
+export const promotionalBannerService = {
+  /**
+   * Actualizar banner promocional de una tienda (solo plan wholesaler)
+   * PATCH /api/shops/:shopId/promotional-banner
+   */
+  update: async (
+    shopId: string,
+    data: {
+      title: string;
+      subtitle: string;
+      imageUrl: string;
+      isActive?: boolean;
+    }
+  ): Promise<{ message: string; shop: Shop }> => {
+    const response = await api.patch(`/shops/${shopId}/promotional-banner`, data);
+    return response.data;
+  },
+
+  /**
+   * Eliminar banner promocional de una tienda
+   * DELETE /api/shops/:shopId/promotional-banner (mediante PATCH con null)
+   */
+  remove: async (shopId: string): Promise<{ message: string; shop: Shop }> => {
+    const response = await api.patch(`/shops/${shopId}/promotional-banner`, {
+      title: '',
+      subtitle: '',
+      imageUrl: '',
+      isActive: false,
+    });
+    return response.data;
+  },
+};
+
 export default api;

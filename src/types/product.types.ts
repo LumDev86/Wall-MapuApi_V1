@@ -51,6 +51,13 @@ export interface Shop {
   schedule: Schedule;
   logo: string;
   banner: string | null;
+  promotionalBanner?: {
+    title: string;
+    subtitle: string;
+    imageUrl: string;
+    isActive: boolean;
+    createdAt: string;
+  } | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

@@ -26,6 +26,7 @@ export type MainStackParamList = {
   CreateShop: undefined;
   CreateProduct: { shopId: string };
   EditProduct: { productId: string };
+  ManagePromotionalBanner: { shop: any };
   Subscription: undefined;
   About: undefined;
   HelpSupport: undefined;

@@ -19,6 +19,7 @@ import MyShopScreen from '../screens/MyShopScreen';
 import CreateShopScreen from '../screens/CreateShopScreen';
 import CreateProductScreen from '../screens/CreateProductScreen';
 import EditProductScreen from '../screens/EditProductScreen';
+import ManagePromotionalBannerScreen from '../screens/ManagePromotionalBannerScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import AboutScreen from '../screens/AboutScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
@@ -69,6 +70,7 @@ const RootNavigator = ({ initialRoute }: { initialRoute: keyof MainStackParamLis
       <MainStack.Screen name="CreateShop" component={CreateShopScreen} />
       <MainStack.Screen name="CreateProduct" component={CreateProductScreen} />
       <MainStack.Screen name="EditProduct" component={EditProductScreen} />
+      <MainStack.Screen name="ManagePromotionalBanner" component={ManagePromotionalBannerScreen} />
       <MainStack.Screen name="Subscription" component={SubscriptionScreen} />
       <MainStack.Screen name="About" component={AboutScreen} />
       <MainStack.Screen name="HelpSupport" component={HelpSupportScreen} />
