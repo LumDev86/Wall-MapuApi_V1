@@ -553,27 +553,7 @@ const HomeScreen = () => {
             </View>
             <Ionicons name="chevron-forward" size={24} color="#fff" />
           </TouchableOpacity>
-
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Ionicons name="storefront-outline" size={28} color={COLORS.primary} />
-              <Text style={styles.statNumber}>{totalShops}</Text>
-              <Text style={styles.statLabel}>Tiendas</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="location-outline" size={28} color={COLORS.primary} />
-              <Text style={styles.statNumber}>{nearbyShops.length}</Text>
-              <Text style={styles.statLabel}>Cerca de ti</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="time-outline" size={28} color={COLORS.primary} />
-              <Text style={styles.statNumber}>{openNowShops.length}</Text>
-              <Text style={styles.statLabel}>Abiertas</Text>
-            </View>
-          </View>
         </View>
-
 
         {/* Banner Carousel */}
         <BannerCarousel />
@@ -631,6 +611,27 @@ const HomeScreen = () => {
               <Ionicons name="map" size={20} color="#fff" />
               <Text style={styles.mapButtonText}>Ver Mapa</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Stats */}
+        <View style={styles.statsSection}>
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Ionicons name="storefront-outline" size={28} color={COLORS.primary} />
+              <Text style={styles.statNumber}>{totalShops}</Text>
+              <Text style={styles.statLabel}>Tiendas</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Ionicons name="location-outline" size={28} color={COLORS.primary} />
+              <Text style={styles.statNumber}>{nearbyShops.length}</Text>
+              <Text style={styles.statLabel}>Cerca de ti</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Ionicons name="time-outline" size={28} color={COLORS.primary} />
+              <Text style={styles.statNumber}>{openNowShops.length}</Text>
+              <Text style={styles.statLabel}>Abiertas</Text>
+            </View>
           </View>
         </View>
 
@@ -823,7 +824,7 @@ const styles = StyleSheet.create({
   bannerSection: {
     marginHorizontal: 20,
     marginTop: 20,
-    marginBottom: 24,
+    marginBottom: 12,
   },
   banner: {
     backgroundColor: COLORS.primary,
@@ -854,6 +855,11 @@ const styles = StyleSheet.create({
   bannerSubtitle: {
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.85)',
+  },
+  statsSection: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
   },
   statsRow: {
     flexDirection: 'row',

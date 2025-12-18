@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,69 +6,238 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../types/navigation.types';
-import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { COLORS } from '../constants/colors';
-import { CartItem } from '../context/CartContext';
+import { Cart, CartItem } from '../types/cart.types';
+import { cartService, orderService } from '../services/api';
 import ImageWithFallback from '../components/ImageWithFallback';
-import { moderateScale as ms, scale as s, verticalScale as vs } from '../utils/responsive';
 
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
 
 const CartScreen = () => {
   const { user } = useAuth();
-  const { items, updateQuantity, removeItem, getTotalPrice } = useCart();
+  const { refreshCart: refreshCartContext } = useCart();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
 
-  const handleIncreaseQuantity = (item: CartItem) => {
-    if (item.quantity < item.product.stock) {
-      updateQuantity(item.product.id, item.quantity + 1);
-    } else {
-      Alert.alert('Stock insuficiente', `Solo hay ${item.product.stock} unidades disponibles`);
+  const [cart, setCart] = useState<Cart | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [updatingItems, setUpdatingItems] = useState<Set<string>>(new Set());
+
+  const fetchCart = async () => {
+    try {
+      setLoading(true);
+      const response = await cartService.getCart();
+      setCart(response);
+    } catch (error: any) {
+      console.error('❌ Error al cargar carrito:', error);
+      if (error.response?.status === 404) {
+        // No hay carrito aún, crear uno vacío
+        setCart({ id: '', items: [], totalItems: 0, totalAmount: 0, createdAt: '', updatedAt: '' });
+      } else {
+        Alert.alert('Error', 'No se pudo cargar el carrito');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDecreaseQuantity = (item: CartItem) => {
-    if (item.quantity > 1) {
-      updateQuantity(item.product.id, item.quantity - 1);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchCart();
+    setRefreshing(false);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchCart();
+    }, [])
+  );
+
+  const handleIncreaseQuantity = async (item: CartItem) => {
+    if (item.quantity >= item.stock) {
+      Alert.alert('Stock insuficiente', `Solo hay ${item.stock} unidades disponibles`);
+      return;
+    }
+
+    try {
+      setUpdatingItems(prev => new Set(prev).add(item.id));
+      const updatedCart = await cartService.updateCartItem(item.id, {
+        quantity: item.quantity + 1,
+      });
+      setCart(updatedCart);
+      await refreshCartContext();
+    } catch (error: any) {
+      console.error('❌ Error al actualizar cantidad:', error);
+      Alert.alert('Error', error.response?.data?.message || 'No se pudo actualizar la cantidad');
+    } finally {
+      setUpdatingItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(item.id);
+        return newSet;
+      });
+    }
+  };
+
+  const handleDecreaseQuantity = async (item: CartItem) => {
+    if (item.quantity <= 1) return;
+
+    try {
+      setUpdatingItems(prev => new Set(prev).add(item.id));
+      const updatedCart = await cartService.updateCartItem(item.id, {
+        quantity: item.quantity - 1,
+      });
+      setCart(updatedCart);
+      await refreshCartContext();
+    } catch (error: any) {
+      console.error('❌ Error al actualizar cantidad:', error);
+      Alert.alert('Error', error.response?.data?.message || 'No se pudo actualizar la cantidad');
+    } finally {
+      setUpdatingItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(item.id);
+        return newSet;
+      });
     }
   };
 
   const handleRemoveItem = (item: CartItem) => {
     Alert.alert(
       'Eliminar producto',
-      `¿Deseas eliminar ${item.product.name} del carrito?`,
+      `¿Deseas eliminar ${item.productName} del carrito?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: () => removeItem(item.product.id),
+          onPress: async () => {
+            try {
+              setUpdatingItems(prev => new Set(prev).add(item.id));
+              const updatedCart = await cartService.removeCartItem(item.id);
+              setCart(updatedCart);
+              await refreshCartContext();
+            } catch (error: any) {
+              console.error('❌ Error al eliminar item:', error);
+              Alert.alert('Error', 'No se pudo eliminar el producto');
+            } finally {
+              setUpdatingItems(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(item.id);
+                return newSet;
+              });
+            }
+          },
         },
       ]
     );
   };
 
-  const handleContinue = () => {
-    // TODO: Implement checkout navigation
-    Alert.alert('Checkout', 'La funcionalidad de checkout estará disponible pronto');
+  const handleClearCart = () => {
+    Alert.alert(
+      'Vaciar carrito',
+      '¿Estás seguro de que deseas vaciar todo el carrito?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Vaciar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await cartService.clearCart();
+              setCart({ id: '', items: [], totalItems: 0, totalAmount: 0, createdAt: '', updatedAt: '' });
+              await refreshCartContext();
+            } catch (error: any) {
+              console.error('❌ Error al vaciar carrito:', error);
+              Alert.alert('Error', 'No se pudo vaciar el carrito');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleContinue = async () => {
+    if (!cart || cart.items.length === 0) {
+      Alert.alert('Carrito vacío', 'Agrega productos para continuar');
+      return;
+    }
+
+    try {
+      setCheckoutLoading(true);
+
+      const checkoutResponse = await orderService.createCheckout();
+
+      console.log('✅ Checkout creado:', checkoutResponse);
+
+      const { order } = checkoutResponse;
+
+      if (order.paymentUrl) {
+        // Abrir el link de pago de MercadoPago
+        const supported = await Linking.canOpenURL(order.paymentUrl);
+
+        if (supported) {
+          await Linking.openURL(order.paymentUrl);
+
+          Alert.alert(
+            'Orden creada',
+            'Se abrió el link de pago de MercadoPago. Completa el pago para finalizar tu compra.',
+            [
+              {
+                text: 'Ver mis órdenes',
+                onPress: () => navigation.navigate('MyOrders'),
+              },
+              {
+                text: 'OK',
+                style: 'cancel',
+              },
+            ]
+          );
+        } else {
+          Alert.alert('Error', 'No se pudo abrir el link de pago');
+        }
+      } else {
+        Alert.alert(
+          'Orden creada',
+          'La orden se creó correctamente pero no se generó el link de pago.',
+          [
+            {
+              text: 'Ver mis órdenes',
+              onPress: () => navigation.navigate('MyOrders'),
+            },
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Error en checkout:', error);
+      const errorMessage = error.response?.data?.message || 'No se pudo procesar el checkout';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   const renderCartItem = ({ item }: { item: CartItem }) => {
-    const price = parseFloat(item.product.priceRetail);
-    const itemTotal = price * item.quantity;
+    const isUpdating = updatingItems.has(item.id);
 
     return (
-      <View style={styles.cartItem}>
+      <View style={[styles.cartItem, isUpdating && styles.cartItemUpdating]}>
         <ImageWithFallback
-          uri={item.product.images[0]}
+          uri={item.productImage}
           style={styles.productImage}
           resizeMode="cover"
         />
@@ -77,59 +246,69 @@ const CartScreen = () => {
           <View style={styles.itemHeader}>
             <View style={styles.itemInfo}>
               <Text style={styles.productName} numberOfLines={2}>
-                {item.product.name}
+                {item.productName}
               </Text>
               <Text style={styles.shopName} numberOfLines={1}>
-                {item.product.shop?.name || 'Tienda'}
+                {item.shopName}
               </Text>
             </View>
 
             <TouchableOpacity
               onPress={() => handleRemoveItem(item)}
               style={styles.deleteButton}
+              disabled={isUpdating}
             >
               <Ionicons name="trash-outline" size={20} color={COLORS.error} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.itemFooter}>
-            <Text style={styles.price}>
-              ${price.toLocaleString('es-AR')}
-            </Text>
+            <View>
+              <Text style={styles.price}>
+                ${item.priceAtAddition.toLocaleString('es-AR')}
+              </Text>
+              <Text style={styles.subtotal}>
+                Total: ${item.subtotal.toLocaleString('es-AR')}
+              </Text>
+            </View>
 
             <View style={styles.quantityControls}>
               <TouchableOpacity
                 onPress={() => handleDecreaseQuantity(item)}
-                style={[styles.quantityButton, item.quantity === 1 && styles.quantityButtonDisabled]}
-                disabled={item.quantity === 1}
+                style={[styles.quantityButton, (item.quantity === 1 || isUpdating) && styles.quantityButtonDisabled]}
+                disabled={item.quantity === 1 || isUpdating}
               >
                 <Ionicons
                   name="remove"
                   size={16}
-                  color={item.quantity === 1 ? COLORS.gray : COLORS.primary}
+                  color={item.quantity === 1 || isUpdating ? COLORS.gray : COLORS.primary}
                 />
               </TouchableOpacity>
 
-              <Text style={styles.quantity}>{item.quantity}</Text>
+              {isUpdating ? (
+                <ActivityIndicator size="small" color={COLORS.primary} style={styles.quantityLoader} />
+              ) : (
+                <Text style={styles.quantity}>{item.quantity}</Text>
+              )}
 
               <TouchableOpacity
                 onPress={() => handleIncreaseQuantity(item)}
                 style={[
                   styles.quantityButton,
-                  item.quantity >= item.product.stock && styles.quantityButtonDisabled
+                  (item.quantity >= item.stock || isUpdating) && styles.quantityButtonDisabled
                 ]}
-                disabled={item.quantity >= item.product.stock}
+                disabled={item.quantity >= item.stock || isUpdating}
               >
                 <Ionicons
                   name="add"
                   size={16}
-                  color={item.quantity >= item.product.stock ? COLORS.gray : COLORS.primary}
+                  color={item.quantity >= item.stock || isUpdating ? COLORS.gray : COLORS.primary}
                 />
               </TouchableOpacity>
             </View>
           </View>
 
-          {item.quantity >= item.product.stock && (
+          {item.quantity >= item.stock && (
             <Text style={styles.stockWarning}>Stock máximo alcanzado</Text>
           )}
         </View>
@@ -155,7 +334,18 @@ const CartScreen = () => {
     </View>
   );
 
-  if (items.length === 0) {
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Cargando carrito...</Text>
+      </View>
+    );
+  }
+
+  const isEmpty = !cart || cart.items.length === 0;
+
+  if (isEmpty) {
     return (
       <View style={styles.container}>
         <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -175,8 +365,6 @@ const CartScreen = () => {
       </View>
     );
   }
-
-  const totalPrice = getTotalPrice();
 
   return (
     <View style={styles.container}>
@@ -200,24 +388,38 @@ const CartScreen = () => {
           </View>
         </View>
 
-        <View style={styles.headerRight} />
+        <TouchableOpacity
+          onPress={handleClearCart}
+          style={styles.clearButton}
+          disabled={loading || cart.items.length === 0}
+        >
+          <Ionicons name="trash-outline" size={20} color={COLORS.white} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
-        data={items}
+        data={cart.items}
         renderItem={renderCartItem}
-        keyExtractor={(item) => item.product.id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.totalContainer}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
+            <Text style={styles.totalLabel}>Subtotal ({cart.totalItems} items)</Text>
             <Text style={styles.totalAmount}>
-              ${totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              ${cart.totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
             </Text>
           </View>
 
@@ -226,17 +428,27 @@ const CartScreen = () => {
           <View style={styles.totalRow}>
             <Text style={styles.grandTotalLabel}>Total</Text>
             <Text style={styles.grandTotalAmount}>
-              ${totalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              ${cart.totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
             </Text>
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.continueButton}
+          style={[styles.continueButton, checkoutLoading && styles.continueButtonDisabled]}
           onPress={handleContinue}
+          disabled={checkoutLoading}
         >
-          <Text style={styles.continueButtonText}>Continuar</Text>
-          <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
+          {checkoutLoading ? (
+            <>
+              <ActivityIndicator size="small" color={COLORS.white} />
+              <Text style={styles.continueButtonText}>Procesando...</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.continueButtonText}>Ir a pagar</Text>
+              <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -247,6 +459,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.lightGray,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.gray,
   },
   header: {
     backgroundColor: COLORS.primary,
@@ -284,6 +507,11 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 40,
   },
+  clearButton: {
+    padding: 8,
+    width: 40,
+    alignItems: 'center',
+  },
   listContent: {
     padding: 16,
   },
@@ -297,6 +525,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+  },
+  cartItemUpdating: {
+    opacity: 0.6,
   },
   productImage: {
     width: 80,
@@ -336,9 +567,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   price: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  subtotal: {
+    fontSize: 12,
     color: COLORS.primary,
+    fontWeight: 'bold',
+    marginTop: 2,
   },
   quantityControls: {
     flexDirection: 'row',
@@ -365,6 +602,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     minWidth: 20,
     textAlign: 'center',
+  },
+  quantityLoader: {
+    marginHorizontal: 16,
   },
   stockWarning: {
     fontSize: 11,
@@ -433,6 +673,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+  },
+  continueButtonDisabled: {
+    backgroundColor: COLORS.gray,
+    opacity: 0.7,
   },
   continueButtonText: {
     fontSize: 16,

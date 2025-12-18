@@ -30,6 +30,16 @@ import {
   PaymentStatusResponse,
 } from '../types/subscription.types';
 import {
+  Cart,
+  AddToCartDto,
+  UpdateCartItemDto,
+  CartActionResponse,
+} from '../types/cart.types';
+import {
+  Order,
+  CheckoutResponse,
+} from '../types/order.types';
+import {
   uploadImage,
   uploadMultipleImages,
   generateTempId,
@@ -808,6 +818,92 @@ export const promotionalBannerService = {
       imageUrl: '',
       isActive: false,
     });
+    return response.data;
+  },
+};
+
+
+// =============================================================================
+// CART SERVICES
+// =============================================================================
+
+export const cartService = {
+  /**
+   * Obtener el carrito del usuario autenticado
+   * GET /api/cart
+   */
+  getCart: async (): Promise<Cart> => {
+    const response = await api.get<Cart>('/cart');
+    return response.data;
+  },
+
+  /**
+   * Agregar producto al carrito
+   * POST /api/cart/items
+   */
+  addToCart: async (data: AddToCartDto): Promise<Cart> => {
+    const response = await api.post<CartActionResponse>('/cart/items', data);
+    return response.data.cart;
+  },
+
+  /**
+   * Actualizar cantidad de un ítem del carrito
+   * PATCH /api/cart/items/:itemId
+   */
+  updateCartItem: async (itemId: string, data: UpdateCartItemDto): Promise<Cart> => {
+    const response = await api.patch<CartActionResponse>(`/cart/items/${itemId}`, data);
+    return response.data.cart;
+  },
+
+  /**
+   * Eliminar un ítem del carrito
+   * DELETE /api/cart/items/:itemId
+   */
+  removeCartItem: async (itemId: string): Promise<Cart> => {
+    const response = await api.delete<CartActionResponse>(`/cart/items/${itemId}`);
+    return response.data.cart;
+  },
+
+  /**
+   * Vaciar el carrito completo
+   * DELETE /api/cart
+   */
+  clearCart: async (): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string; cart: Cart }>('/cart');
+    return { message: response.data.message };
+  },
+};
+
+
+// =============================================================================
+// ORDER SERVICES
+// =============================================================================
+
+export const orderService = {
+  /**
+   * Crear checkout desde el carrito
+   * POST /api/orders/checkout
+   */
+  createCheckout: async (): Promise<CheckoutResponse> => {
+    const response = await api.post<CheckoutResponse>('/orders/checkout');
+    return response.data;
+  },
+
+  /**
+   * Obtener todas las órdenes del usuario
+   * GET /api/orders
+   */
+  getOrders: async (): Promise<Order[]> => {
+    const response = await api.get<Order[]>('/orders');
+    return response.data;
+  },
+
+  /**
+   * Obtener detalle de una orden
+   * GET /api/orders/:id
+   */
+  getOrder: async (orderId: string): Promise<Order> => {
+    const response = await api.get<Order>(`/orders/${orderId}`);
     return response.data;
   },
 };

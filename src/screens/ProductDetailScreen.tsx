@@ -12,7 +12,7 @@ import {
   ToastAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { productService } from '../services/api';
+import { productService, cartService } from '../services/api';
 import { Product } from '../types/product.types';
 import { COLORS } from '../constants/colors';
 import { useCart } from '../context/CartContext';
@@ -26,9 +26,10 @@ interface ProductDetailScreenProps {
 
 const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({ navigation, route }) => {
   const { productId } = route.params;
-  const { addItem } = useCart();
+  const { refreshCart } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
 
   useEffect(() => {
@@ -65,10 +66,36 @@ const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({ navigation, r
     }
   };
 
-  const handleAddToCart = () => {
-    if (product) {
-      addItem(product, 1);
-      ToastAndroid.show(`${product.name} agregado al carrito`, ToastAndroid.SHORT);
+  const handleAddToCart = async () => {
+    if (!product) return;
+
+    try {
+      setAddingToCart(true);
+      await cartService.addToCart({
+        productId: product.id,
+        quantity: 1,
+      });
+
+      // Refrescar el contador del carrito
+      await refreshCart();
+
+      Alert.alert(
+        'Agregado al carrito',
+        `${product.name} se agregó correctamente al carrito`,
+        [
+          { text: 'Seguir comprando', style: 'cancel' },
+          {
+            text: 'Ver carrito',
+            onPress: () => navigation.navigate('Cart'),
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error('❌ Error al agregar al carrito:', error);
+      const errorMessage = error.response?.data?.message || 'No se pudo agregar el producto al carrito';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setAddingToCart(false);
     }
   };
 
@@ -219,12 +246,24 @@ const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({ navigation, r
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.addButton, product.stock === 0 && styles.disabledButton]}
+          style={[
+            styles.addButton,
+            (product.stock === 0 || addingToCart) && styles.disabledButton
+          ]}
           onPress={handleAddToCart}
-          disabled={product.stock === 0}
+          disabled={product.stock === 0 || addingToCart}
         >
-          <Ionicons name="cart-outline" size={20} color={COLORS.white} />
-          <Text style={styles.addButtonText}>Agregar al Carrito</Text>
+          {addingToCart ? (
+            <>
+              <ActivityIndicator size="small" color={COLORS.white} />
+              <Text style={styles.addButtonText}>Agregando...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="cart-outline" size={20} color={COLORS.white} />
+              <Text style={styles.addButtonText}>Agregar al Carrito</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </View>

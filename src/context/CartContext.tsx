@@ -1,8 +1,6 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { Product } from '../types/product.types';
-
-const CART_STORAGE_KEY = 'cart';
+import { cartService } from '../services/api';
 
 export interface CartItem {
   product: Product;
@@ -17,110 +15,89 @@ export interface CartContextData {
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
+  refreshCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPrice, setTotalPrice] = useState(0);
 
-  // Cargar carrito desde AsyncStorage al iniciar
+  // Cargar carrito desde el backend al iniciar
   useEffect(() => {
-    loadCartFromStorage();
+    refreshCart();
   }, []);
 
-  // Guardar carrito en AsyncStorage cada vez que cambie
-  useEffect(() => {
-    if (!isLoading) {
-      saveCartToStorage(items);
-    }
-  }, [items]);
-
-  const loadCartFromStorage = async () => {
+  const refreshCart = useCallback(async () => {
     try {
-      const storedCart = await AsyncStorage.getItem(CART_STORAGE_KEY);
-      if (storedCart) {
-        const parsedCart = JSON.parse(storedCart) as CartItem[];
-        setItems(parsedCart);
-      }
-    } catch (error) {
-      console.error('Error loading cart from storage:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const saveCartToStorage = async (cartItems: CartItem[]) => {
-    try {
-      await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
-    } catch (error) {
-      console.error('Error saving cart to storage:', error);
-    }
-  };
-
-  const addItem = (product: Product, quantity: number = 1) => {
-    setItems(prevItems => {
-      const existingItem = prevItems.find(item => item.product.id === product.id);
-
-      if (existingItem) {
-        // Si el producto ya existe, incrementar la cantidad
-        return prevItems.map(item =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
+      const cart = await cartService.getCart();
+      setTotalItems(cart.totalItems);
+      setTotalPrice(cart.totalAmount);
+    } catch (error: any) {
+      // Si no hay carrito o error 404, simplemente dejar en 0
+      if (error.response?.status === 404) {
+        setTotalItems(0);
+        setTotalPrice(0);
       } else {
-        // Si es nuevo, agregarlo al carrito
-        return [...prevItems, { product, quantity }];
+        console.error('Error loading cart:', error);
       }
-    });
-  };
-
-  const removeItem = (productId: string) => {
-    setItems(prevItems => prevItems.filter(item => item.product.id !== productId));
-  };
-
-  const updateQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeItem(productId);
-      return;
     }
+  }, []);
 
-    setItems(prevItems =>
-      prevItems.map(item =>
-        item.product.id === productId
-          ? { ...item, quantity }
-          : item
-      )
-    );
+  // Funciones dummy para mantener compatibilidad con código existente
+  // Todo el manejo real se hace en los screens que llaman directamente al cartService
+  const addItem = async (product: Product, quantity: number = 1) => {
+    try {
+      await cartService.addToCart({
+        productId: product.id,
+        quantity,
+      });
+      await refreshCart();
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      throw error;
+    }
   };
 
-  const clearCart = () => {
-    setItems([]);
+  const removeItem = async (productId: string) => {
+    // Esta función no se usa porque CartScreen maneja la eliminación directamente
+    await refreshCart();
+  };
+
+  const updateQuantity = async (productId: string, quantity: number) => {
+    // Esta función no se usa porque CartScreen maneja las actualizaciones directamente
+    await refreshCart();
+  };
+
+  const clearCart = async () => {
+    try {
+      await cartService.clearCart();
+      await refreshCart();
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+    }
   };
 
   const getTotalItems = (): number => {
-    return items.reduce((total, item) => total + item.quantity, 0);
+    return totalItems;
   };
 
   const getTotalPrice = (): number => {
-    return items.reduce((total, item) => {
-      const price = parseFloat(item.product.priceRetail);
-      return total + (price * item.quantity);
-    }, 0);
+    return totalPrice;
   };
 
   return (
     <CartContext.Provider
       value={{
-        items,
+        items: [], // No se usa más, todo viene del backend
         addItem,
         removeItem,
         updateQuantity,
         clearCart,
         getTotalItems,
         getTotalPrice,
+        refreshCart,
       }}
     >
       {children}
