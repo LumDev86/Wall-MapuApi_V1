@@ -49,6 +49,20 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
     filterProducts();
   }, [searchQuery, selectedCategory, products]);
 
+  // Registrar vista de la tienda (incrementar contador de clicks)
+  useEffect(() => {
+    const registerShopView = async () => {
+      try {
+        await shopService.incrementClick(shopId);
+      } catch (error) {
+        // Silenciar error para no afectar UX
+        console.log('Error registrando vista de tienda');
+      }
+    };
+
+    registerShopView();
+  }, [shopId]);
+
   const fetchData = async () => {
     try {
       setLoading(true);

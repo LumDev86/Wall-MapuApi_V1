@@ -613,6 +613,23 @@ export const shopService = {
     const response = await api.delete(`/shops/${id}`);
     return response.data;
   },
+
+  /**
+   * Incrementar contador de clicks cuando un usuario visita el perfil de una tienda
+   * POST /api/shops/:id/increment-click
+   * No requiere autenticación
+   */
+  incrementClick: async (id: string): Promise<{ message: string; clickCount: number }> => {
+    try {
+      const response = await api.post(`/shops/${id}/increment-click`);
+      return response.data;
+    } catch (error) {
+      // Silenciar error para no afectar UX
+      console.log('Error registrando vista de tienda:', error);
+      return { message: 'Error', clickCount: 0 };
+    }
+  },
+};
 };
 
 // =============================================================================
