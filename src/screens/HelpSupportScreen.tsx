@@ -156,28 +156,6 @@ Email: ${user?.email || 'N/A'}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* Mis Tickets */}
-        <View style={styles.ticketsSection}>
-          <TouchableOpacity
-            style={styles.myTicketsButton}
-            onPress={() => navigation.navigate('TicketsList' as never)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.myTicketsContent}>
-              <View style={styles.myTicketsIcon}>
-                <Ionicons name="ticket" size={28} color={COLORS.primary} />
-              </View>
-              <View style={styles.myTicketsText}>
-                <Text style={styles.myTicketsTitle}>Mis Tickets de Soporte</Text>
-                <Text style={styles.myTicketsDescription}>
-                  Ver y gestionar tus consultas
-                </Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#ccc" />
-          </TouchableOpacity>
-        </View>
-
         {/* Contacto rápido */}
         <View style={styles.quickContactSection}>
           <Text style={styles.quickContactTitle}>¿Necesitas ayuda inmediata?</Text>

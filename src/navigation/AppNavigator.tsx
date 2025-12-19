@@ -23,9 +23,9 @@ import ManagePromotionalBannerScreen from '../screens/ManagePromotionalBannerScr
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import AboutScreen from '../screens/AboutScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
-import TicketsListScreen from '../screens/TicketsListScreen';
-import CreateTicketScreen from '../screens/CreateTicketScreen';
-import TicketDetailScreen from '../screens/TicketDetailScreen';
+// import TicketsListScreen from '../screens/TicketsListScreen';
+// import CreateTicketScreen from '../screens/CreateTicketScreen';
+// import TicketDetailScreen from '../screens/TicketDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import MyOrdersScreen from '../screens/MyOrdersScreen';
 import TermsScreen from '../screens/TermsScreen';
@@ -81,9 +81,9 @@ const RootNavigator = ({ initialRoute }: { initialRoute: keyof MainStackParamLis
       <MainStack.Screen name="MyOrders" component={MyOrdersScreen} />
       <MainStack.Screen name="Terms" component={TermsScreen} />
       <MainStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-      <MainStack.Screen name="TicketsList" component={TicketsListScreen} />
+      {/* <MainStack.Screen name="TicketsList" component={TicketsListScreen} />
       <MainStack.Screen name="CreateTicket" component={CreateTicketScreen} />
-      <MainStack.Screen name="TicketDetail" component={TicketDetailScreen} />
+      <MainStack.Screen name="TicketDetail" component={TicketDetailScreen} /> */}
     </MainStack.Navigator>
   );
 };
