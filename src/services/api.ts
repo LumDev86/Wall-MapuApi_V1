@@ -40,6 +40,13 @@ import {
   CheckoutResponse,
 } from '../types/order.types';
 import {
+  Ticket,
+  TicketMessage,
+  CreateTicketRequest,
+  ReplyToTicketRequest,
+  TicketsResponse,
+} from '../types/ticket.types';
+import {
   uploadImage,
   uploadMultipleImages,
   generateTempId,
@@ -920,6 +927,56 @@ export const orderService = {
    */
   getOrder: async (orderId: string): Promise<Order> => {
     const response = await api.get<Order>(`/orders/${orderId}`);
+    return response.data;
+  },
+};
+
+
+
+// =============================================================================
+// TICKET SERVICES
+// =============================================================================
+
+export const ticketService = {
+  /**
+   * Crear un nuevo ticket
+   * POST /api/tickets
+   */
+  create: async (data: CreateTicketRequest): Promise<{ message: string; ticket: Ticket }> => {
+    const response = await api.post('/tickets', data);
+    return response.data;
+  },
+
+  /**
+   * Obtener todos los tickets del usuario autenticado
+   * GET /api/tickets
+   */
+  getAll: async (params?: {
+    status?: string;
+    priority?: string;
+    category?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<TicketsResponse> => {
+    const response = await api.get<TicketsResponse>('/tickets', { params });
+    return response.data;
+  },
+
+  /**
+   * Obtener detalle de un ticket con todos sus mensajes
+   * GET /api/tickets/:id
+   */
+  getById: async (id: string): Promise<Ticket> => {
+    const response = await api.get<Ticket>(`/tickets/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Responder a un ticket
+   * POST /api/tickets/:id/reply
+   */
+  reply: async (id: string, data: ReplyToTicketRequest): Promise<{ message: string; reply: TicketMessage }> => {
+    const response = await api.post(`/tickets/${id}/reply`, data);
     return response.data;
   },
 };

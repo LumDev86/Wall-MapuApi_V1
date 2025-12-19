@@ -156,6 +156,28 @@ Email: ${user?.email || 'N/A'}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
+        {/* Mis Tickets */}
+        <View style={styles.ticketsSection}>
+          <TouchableOpacity
+            style={styles.myTicketsButton}
+            onPress={() => (navigation as any).navigate('TicketsList')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.myTicketsContent}>
+              <View style={styles.myTicketsIcon}>
+                <Ionicons name="ticket" size={28} color={COLORS.primary} />
+              </View>
+              <View style={styles.myTicketsText}>
+                <Text style={styles.myTicketsTitle}>Mis Tickets de Soporte</Text>
+                <Text style={styles.myTicketsDescription}>
+                  Ver y gestionar tus consultas
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#ccc" />
+          </TouchableOpacity>
+        </View>
+
         {/* Contacto rápido */}
         <View style={styles.quickContactSection}>
           <Text style={styles.quickContactTitle}>¿Necesitas ayuda inmediata?</Text>
@@ -333,6 +355,48 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
+  },
+  ticketsSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    marginBottom: 16,
+  },
+  myTicketsButton: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  myTicketsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  myTicketsIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F0F9F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  myTicketsText: {
+    flex: 1,
+  },
+  myTicketsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  myTicketsDescription: {
+    fontSize: 13,
+    color: '#888',
   },
   header: {
     backgroundColor: COLORS.primary,

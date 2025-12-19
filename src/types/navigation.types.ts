@@ -34,6 +34,9 @@ export type MainStackParamList = {
   MyOrders: undefined;
   Terms: undefined;
   PrivacyPolicy: undefined;
+  TicketsList: undefined;
+  CreateTicket: undefined;
+  TicketDetail: { ticketId: string };
 };
 
 // Bottom Tab
