@@ -52,11 +52,16 @@ const ShopDetailScreen: React.FC<ShopDetailScreenProps> = ({ navigation, route }
   // Registrar vista de la tienda (incrementar contador de clicks)
   useEffect(() => {
     const registerShopView = async () => {
+      console.log('🟦 [TRACKING] Iniciando registro de vista para shop:', shopId);
       try {
-        await shopService.incrementClick(shopId);
+        const result = await shopService.incrementClick(shopId);
+        console.log('✅ [TRACKING] Click registrado exitosamente:', JSON.stringify(result, null, 2));
       } catch (error) {
-        // Silenciar error para no afectar UX
-        console.log('Error registrando vista de tienda');
+        console.error('❌ [TRACKING] Error registrando vista:', error);
+        if (error.response) {
+          console.error('❌ [TRACKING] Response data:', error.response.data);
+          console.error('❌ [TRACKING] Response status:', error.response.status);
+        }
       }
     };
 
