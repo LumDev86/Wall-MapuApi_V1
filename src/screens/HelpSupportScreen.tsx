@@ -160,7 +160,7 @@ Email: ${user?.email || 'N/A'}
         <View style={styles.ticketsSection}>
           <TouchableOpacity
             style={styles.myTicketsButton}
-            onPress={() => (navigation as any).navigate('TicketsList')}
+            onPress={() => navigation.navigate('TicketsList' as never)}
             activeOpacity={0.8}
           >
             <View style={styles.myTicketsContent}>
