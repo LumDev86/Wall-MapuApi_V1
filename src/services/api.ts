@@ -107,6 +107,19 @@ export const authService = {
   },
 
   /**
+   * Iniciar sesión con Google
+   * POST /api/auth/google
+   */
+  loginWithGoogle: async (idToken: string): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/google', { idToken });
+    if (response.data.token) {
+      await secureStorage.saveToken(response.data.token);
+      await secureStorage.saveUser(response.data.user);
+    }
+    return response.data;
+  },
+
+  /**
    * Enviar email de recuperación de contraseña
    * POST /api/auth/forgot-password
    */

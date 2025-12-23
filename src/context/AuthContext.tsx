@@ -1,4 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 import { authService } from '../services/api';
 import { User, LoginRequest, RegisterRequest } from '../types/auth.types';
 
@@ -8,6 +12,7 @@ interface AuthContextData {
   needsProfileCompletion: boolean;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<{ needsCompletion: boolean }>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   clearData: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -63,6 +68,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(response.user);
       return { needsCompletion: isClient };
     } catch (error) {
+      throw error;
+    }
+  };
+
+
+  const loginWithGoogle = async () => {
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth' });
+      const discovery = await AuthSession.fetchDiscoveryAsync(
+        'https://accounts.google.com'
+      );
+      
+      const request = new AuthSession.AuthRequest({
+        clientId: '855339673822-bct96b5jvi1tiau9t71rghckmo382sgb.apps.googleusercontent.com',
+        scopes: ['openid', 'profile', 'email'],
+        redirectUri: redirectUrl,
+        responseType: AuthSession.ResponseType.IdToken,
+      });
+
+      const result = await request.promptAsync(discovery);
+      
+      if (result.type === 'success' && result.params.id_token) {
+        const response = await authService.loginWithGoogle(result.params.id_token);
+        setUser(response.user);
+      }
+    } catch (error) {
+      console.error('Error en Google login:', error);
       throw error;
     }
   };

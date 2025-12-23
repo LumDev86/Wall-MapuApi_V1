@@ -56,7 +56,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Wallmapu necesita acceso a tu ubicación para mostrarte tiendas cercanas"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "owner": "whapy"
   }
