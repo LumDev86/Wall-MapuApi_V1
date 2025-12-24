@@ -133,6 +133,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       needsProfileCompletion,
       login,
       register,
+      loginWithGoogle,
       logout,
       clearData,
       refreshUser,
