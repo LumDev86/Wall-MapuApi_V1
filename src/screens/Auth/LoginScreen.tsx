@@ -69,7 +69,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     try {
       await loginWithGoogle();
     } catch (error: any) {
-      Alert.alert('Error', 'Error al iniciar sesión con Google');
+      console.error('Google login error details:', error);
+      const errorMessage = error.message || error.toString() || 'Error al iniciar sesión con Google';
+      Alert.alert('Error de Google Sign-In', errorMessage);
     } finally {
       setLoading(false);
     }
