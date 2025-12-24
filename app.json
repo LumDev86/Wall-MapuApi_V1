@@ -59,6 +59,7 @@
       ],
       "expo-web-browser"
     ],
-    "owner": "whapy"
+    "owner": "whapy",
+    "scheme": "wallmapu"
   }
 }
