@@ -36,7 +36,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setTotalPrice(cart.totalAmount);
     } catch (error: any) {
       // Si no hay carrito o error 404, simplemente dejar en 0
-      if (error.response?.status === 404) {
+      if (error.response?.status === 404 || error.response?.status === 401) {
         setTotalItems(0);
         setTotalPrice(0);
       } else {
