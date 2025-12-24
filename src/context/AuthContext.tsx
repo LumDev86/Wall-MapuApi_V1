@@ -85,6 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         scopes: ['openid', 'profile', 'email'],
         redirectUri: redirectUrl,
         responseType: AuthSession.ResponseType.IdToken,
+        usePKCE: false,
       });
 
       const result = await request.promptAsync(discovery);
