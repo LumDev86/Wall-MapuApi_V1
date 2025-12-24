@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       );
       
       const request = new AuthSession.AuthRequest({
-        clientId: '855339673822-5tagccghm8kplp5rc58njhhh432p1cl3.apps.googleusercontent.com',
+        clientId: '855339673822-bct96b5jvi1tiau9t71rghckmo382sgb.apps.googleusercontent.com',
         scopes: ['openid', 'profile', 'email'],
         redirectUri: redirectUrl,
         responseType: AuthSession.ResponseType.IdToken,
