@@ -57,7 +57,13 @@
           "locationAlwaysAndWhenInUsePermission": "Wallmapu necesita acceso a tu ubicación para mostrarte tiendas cercanas"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.855339673822-bct96b5jvi1tiau9t71rghckmo382sgb"
+        }
+      ]
     ],
     "owner": "whapy",
     "scheme": "wallmapu"

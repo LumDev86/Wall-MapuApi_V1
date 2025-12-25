@@ -1,8 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-
-WebBrowser.maybeCompleteAuthSession();
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { authService } from '../services/api';
 import { User, LoginRequest, RegisterRequest } from '../types/auth.types';
 
@@ -75,26 +72,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loginWithGoogle = async () => {
     try {
-      const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth' });
-      const discovery = await AuthSession.fetchDiscoveryAsync(
-        'https://accounts.google.com'
-      );
-      
-      const request = new AuthSession.AuthRequest({
-        clientId: '855339673822-bct96b5jvi1tiau9t71rghckmo382sgb.apps.googleusercontent.com',
-        scopes: ['openid', 'profile', 'email'],
-        redirectUri: redirectUrl,
-        responseType: AuthSession.ResponseType.IdToken,
-        usePKCE: false,
+      // Configure Google Sign-In
+      GoogleSignin.configure({
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        offlineAccess: false,
       });
 
-      const result = await request.promptAsync(discovery);
-      
-      if (result.type === 'success' && result.params.id_token) {
-        const response = await authService.loginWithGoogle(result.params.id_token);
+      // Check if Play Services are available
+      await GoogleSignin.hasPlayServices();
+
+      // Sign in
+      const userInfo = await GoogleSignin.signIn();
+
+      // Get the ID token
+      const idToken = userInfo.idToken;
+
+      if (idToken) {
+        // Send to backend
+        const response = await authService.loginWithGoogle(idToken);
         setUser(response.user);
+      } else {
+        throw new Error('No se pudo obtener el ID token de Google');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error en Google login:', error);
       throw error;
     }
