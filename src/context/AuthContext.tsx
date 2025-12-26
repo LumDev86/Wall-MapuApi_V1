@@ -83,6 +83,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       GoogleSignin.configure({
         webClientId,
         offlineAccess: true,
+        scopes: ['profile', 'email'],
       });
 
       // Check if Play Services are available
@@ -91,14 +92,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Sign in
       const userInfo = await GoogleSignin.signIn();
 
+      console.log('Google Sign-In Response:', {
+        hasIdToken: !!userInfo.idToken,
+        hasServerAuthCode: !!userInfo.serverAuthCode,
+        userEmail: userInfo.user?.email,
+        allKeys: Object.keys(userInfo),
+      });
+
       // Get the ID token
       const idToken = userInfo.idToken;
 
       if (idToken) {
+        console.log('Sending idToken to backend...');
         // Send to backend
         const response = await authService.loginWithGoogle(idToken);
         setUser(response.user);
       } else {
+        console.error('No idToken found. UserInfo:', JSON.stringify(userInfo, null, 2));
         throw new Error('No se pudo obtener el ID token de Google');
       }
     } catch (error: any) {
