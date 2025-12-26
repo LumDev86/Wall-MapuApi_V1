@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       // Get the ID token
-      const idToken = userInfo.idToken;
+      const idToken = userInfo.idToken || userInfo.data?.idToken;
 
       if (idToken) {
         console.log('Sending idToken to backend...');
