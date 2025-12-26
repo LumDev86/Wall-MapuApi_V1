@@ -72,9 +72,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loginWithGoogle = async () => {
     try {
+      const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '855339673822-5tagccghm8kplp5rc58njhhh432p1cl3.apps.googleusercontent.com';
+
+      console.log('Google Sign-In Config:', {
+        webClientId,
+        fromEnv: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      });
+
       // Configure Google Sign-In
       GoogleSignin.configure({
-        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        webClientId,
         offlineAccess: false,
       });
 
