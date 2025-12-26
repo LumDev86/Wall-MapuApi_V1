@@ -7,7 +7,14 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "855339673822-5tagccghm8kplp5rc58njhhh432p1cl3.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "855339673822-5tagccghm8kplp5rc58njhhh432p1cl3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_API_URL": "https://wall-mapuapi-production.up.railway.app/api",
+        "EXPO_PUBLIC_APP_NAME": "Wallmapu",
+        "EXPO_PUBLIC_APP_VERSION": "1.0.0",
+        "EXPO_PUBLIC_ENV": "development",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyC56WIVTWhOvGn_r0JVhqdqx5-IYoWyL_Q",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://gdfiblfkfegyqbtvcewa.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkZmlibGZrZmVneXFidHZjZXdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4ODE1MDYsImV4cCI6MjA3ODQ1NzUwNn0.8aMQCQARtOqXPv9ON7jD3RR8Efo5HWDCI0TmXkE5XTU"
       }
     },
     "preview": {
