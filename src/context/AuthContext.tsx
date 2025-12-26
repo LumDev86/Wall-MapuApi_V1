@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Configure Google Sign-In
       GoogleSignin.configure({
         webClientId,
-        offlineAccess: false,
+        offlineAccess: true,
       });
 
       // Check if Play Services are available
