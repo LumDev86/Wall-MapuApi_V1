@@ -5,7 +5,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "855339673822-5tagccghm8kplp5rc58njhhh432p1cl3.apps.googleusercontent.com"
+      }
     },
     "preview": {
       "distribution": "internal",
